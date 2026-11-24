@@ -6,11 +6,19 @@ export function HasilBelajarPages({
   identitas,
   school,
   report,
+  fase,
+  tahunPelajaran,
 }: {
   identitas: StudentIdentity;
   school: SchoolProfile;
   report: HasilBelajarReport;
+  fase?: string;
+  tahunPelajaran?: string;
 }) {
+  const effectiveFase = fase || school.fase;
+  const effectiveTahun = tahunPelajaran || school.tahunPelajaran;
+  const isEvenSemester = Number(report.semester) % 2 === 0;
+
   return (
     <>
       {/* HALAMAN 1 */}
@@ -21,9 +29,9 @@ export function HasilBelajarPages({
           nisn={identitas.nisn}
           school={school}
           kelas={report.kelas}
-          fase={school.fase}
+          fase={effectiveFase}
           semester={report.semester}
-          tahunPelajaran={school.tahunPelajaran}
+          tahunPelajaran={effectiveTahun}
         />
 
         <h1 className="text-center text-[11.5pt] font-bold tracking-wide mt-4 mb-3">
@@ -74,13 +82,13 @@ export function HasilBelajarPages({
           nisn={identitas.nisn}
           school={school}
           kelas={report.kelas}
-          fase={school.fase}
+          fase={effectiveFase}
           semester={report.semester}
-          tahunPelajaran={school.tahunPelajaran}
+          tahunPelajaran={effectiveTahun}
         />
 
-        {/* Kegiatan Ekstrakurikuler (always shown on Sem 2 or when items exist) */}
-        {(report.semester === '2' || report.ekstrakurikuler.some((e) => e.kegiatan)) && (
+        {/* Kegiatan Ekstrakurikuler (shown on even semesters or when items exist) */}
+        {(isEvenSemester || report.ekstrakurikuler.some((e) => e.kegiatan)) && (
           <div className="mt-6">
             <table className="rapor-table text-[9pt]">
               <thead>

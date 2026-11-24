@@ -7,10 +7,14 @@ export function SumatifPage({
   identitas,
   school,
   sumatif,
+  fase,
+  tahunPelajaran,
 }: {
   identitas: StudentIdentity;
   school: SchoolProfile;
   sumatif: SumatifReport;
+  fase?: string;
+  tahunPelajaran?: string;
 }) {
   return (
     <div className="rapor-sheet" style={{ padding: '11mm 14mm 10mm 14mm' }}>
@@ -20,9 +24,9 @@ export function SumatifPage({
         nisn={identitas.nisn}
         school={school}
         kelas={sumatif.kelas}
-        fase={school.fase}
+        fase={fase || school.fase}
         semester={sumatif.semester}
-        tahunPelajaran={school.tahunPelajaran}
+        tahunPelajaran={tahunPelajaran || school.tahunPelajaran}
       />
 
       <h1 className="text-center text-[11pt] font-bold tracking-wide mt-3.5 mb-2.5">

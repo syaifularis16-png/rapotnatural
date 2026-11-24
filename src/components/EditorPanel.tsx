@@ -2,16 +2,20 @@ import React from 'react';
 import { Plus, Trash2, Upload } from 'lucide-react';
 import { calculateAverage } from '../data/defaultData';
 import {
+  CustomModuleLayout,
+  CustomRaporModule,
   HasilBelajarReport,
   P5Level,
   RaporModule,
+  SemesterPackage,
   SignatureMode,
   StudentRecord,
 } from '../types/rapor';
 
 interface EditorPanelProps {
-  activeModule: RaporModule;
-  activeSemester: '1' | '2';
+  activeModule: RaporModule | 'custom';
+  activeCustomModuleId?: string | null;
+  activeSemester: SemesterPackage;
   student: StudentRecord;
   onUpdateStudent: (updated: StudentRecord) => void;
 }
@@ -25,6 +29,7 @@ const P5_LEVEL_OPTIONS: { value: P5Level; label: string }[] = [
 
 export function EditorPanel({
   activeModule,
+  activeCustomModuleId,
   activeSemester,
   student,
   onUpdateStudent,
@@ -33,6 +38,15 @@ export function EditorPanel({
     onUpdateStudent({
       ...student,
       identitas: { ...student.identitas, ...patch },
+    });
+  };
+
+  const updateSemester = (patch: Partial<SemesterPackage>) => {
+    onUpdateStudent({
+      ...student,
+      semesters: student.semesters.map((sem) =>
+        sem.id === activeSemester.id ? { ...sem, ...patch } : sem
+      ),
     });
   };
 
@@ -204,11 +218,12 @@ export function EditorPanel({
   }
 
   if (activeModule === 'sumatif') {
-    const sumatif = student.sumatif;
-    const updateSumatif = (patch: Partial<StudentRecord['sumatif']>) => {
-      onUpdateStudent({
-        ...student,
+    const sumatif = activeSemester.sumatif;
+    const updateSumatif = (patch: Partial<SemesterPackage['sumatif']>) => {
+      updateSemester({
         sumatif: { ...sumatif, ...patch },
+        ...(patch.kelas ? { kelas: patch.kelas } : {}),
+        ...(patch.semester ? { semesterNumber: patch.semester } : {}),
       });
     };
 
@@ -249,7 +264,9 @@ export function EditorPanel({
     return (
       <div className="space-y-5">
         <div>
-          <h3 className="text-sm font-semibold text-slate-900">Editor Penilaian Sumatif (STS)</h3>
+          <h3 className="text-sm font-semibold text-slate-900">
+            Editor Penilaian Sumatif ({activeSemester.label})
+          </h3>
           <p className="text-xs text-slate-500 mt-0.5">
             Rerata nilai dihitung otomatis dari seluruh rincian nilai sumatif.
           </p>
@@ -267,6 +284,17 @@ export function EditorPanel({
             onChange={(v) => updateSumatif({ semester: v })}
           />
           <FieldInput
+            label="Tahun Pelajaran"
+            value={activeSemester.tahunPelajaran}
+            onChange={(v) => updateSemester({ tahunPelajaran: v })}
+            mono
+          />
+          <FieldInput
+            label="Fase"
+            value={activeSemester.fase}
+            onChange={(v) => updateSemester({ fase: v })}
+          />
+          <FieldInput
             label="Tanggal Cetak"
             value={sumatif.tanggalCetak}
             onChange={(v) => updateSumatif({ tanggalCetak: v })}
@@ -282,7 +310,10 @@ export function EditorPanel({
           {sumatif.subjects.map((sub, sIdx) => {
             const avg = calculateAverage(sub.rincian);
             return (
-              <div key={sub.id} className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+              <div
+                key={sub.id}
+                className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2"
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="text-xs font-semibold text-slate-800 leading-snug">
                     {sIdx + 1}. {sub.nama}
@@ -340,13 +371,13 @@ export function EditorPanel({
   }
 
   if (activeModule === 'hasil_belajar') {
-    const key = activeSemester === '1' ? 'hasilBelajarSem1' : 'hasilBelajarSem2';
-    const report: HasilBelajarReport = student[key];
+    const report: HasilBelajarReport = activeSemester.hasilBelajar;
 
     const updateReport = (patch: Partial<HasilBelajarReport>) => {
-      onUpdateStudent({
-        ...student,
-        [key]: { ...report, ...patch },
+      updateSemester({
+        hasilBelajar: { ...report, ...patch },
+        ...(patch.kelas ? { kelas: patch.kelas } : {}),
+        ...(patch.semester ? { semesterNumber: patch.semester } : {}),
       });
     };
 
@@ -365,7 +396,7 @@ export function EditorPanel({
       <div className="space-y-5">
         <div>
           <h3 className="text-sm font-semibold text-slate-900">
-            Editor Laporan Hasil Belajar (Sem {activeSemester})
+            Editor Laporan Hasil Belajar ({activeSemester.label})
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
             Atur nilai akhir, capaian kompetensi, ekstrakurikuler, dan catatan wali kelas.
@@ -374,9 +405,31 @@ export function EditorPanel({
 
         <div className="grid grid-cols-2 gap-2.5">
           <FieldInput
+            label="Label Semester"
+            value={activeSemester.label}
+            onChange={(v) => updateSemester({ label: v })}
+          />
+          <FieldInput
+            label="Nomor Semester"
+            value={report.semester}
+            onChange={(v) => updateReport({ semester: v })}
+            mono
+          />
+          <FieldInput
             label="Kelas"
             value={report.kelas}
             onChange={(v) => updateReport({ kelas: v })}
+          />
+          <FieldInput
+            label="Tahun Pelajaran"
+            value={activeSemester.tahunPelajaran}
+            onChange={(v) => updateSemester({ tahunPelajaran: v })}
+            mono
+          />
+          <FieldInput
+            label="Fase"
+            value={activeSemester.fase}
+            onChange={(v) => updateSemester({ fase: v })}
           />
           <FieldInput
             label="Tanggal Cetak"
@@ -420,56 +473,54 @@ export function EditorPanel({
           ))}
         </div>
 
-        {activeSemester === '2' && (
-          <div className="space-y-2.5 pt-2 border-t border-slate-200">
-            <div className="text-xs font-semibold text-slate-700">Ekstrakurikuler</div>
-            {report.ekstrakurikuler.map((eks, idx) => (
-              <div key={eks.id} className="grid grid-cols-3 gap-2">
-                <input
-                  type="text"
-                  placeholder={`Kegiatan ${idx + 1}`}
-                  value={eks.kegiatan}
-                  onChange={(e) => {
-                    const next = report.ekstrakurikuler.map((item) =>
-                      item.id === eks.id ? { ...item, kegiatan: e.target.value } : item
-                    );
-                    updateReport({ ekstrakurikuler: next });
-                  }}
-                  className="px-2 py-1.5 text-xs bg-white border border-slate-300 rounded"
-                />
-                <input
-                  type="text"
-                  placeholder="Predikat"
-                  value={eks.predikat}
-                  onChange={(e) => {
-                    const next = report.ekstrakurikuler.map((item) =>
-                      item.id === eks.id ? { ...item, predikat: e.target.value } : item
-                    );
-                    updateReport({ ekstrakurikuler: next });
-                  }}
-                  className="px-2 py-1.5 text-xs bg-white border border-slate-300 rounded"
-                />
-                <input
-                  type="text"
-                  placeholder="Keterangan"
-                  value={eks.keterangan}
-                  onChange={(e) => {
-                    const next = report.ekstrakurikuler.map((item) =>
-                      item.id === eks.id ? { ...item, keterangan: e.target.value } : item
-                    );
-                    updateReport({ ekstrakurikuler: next });
-                  }}
-                  className="px-2 py-1.5 text-xs bg-white border border-slate-300 rounded"
-                />
-              </div>
-            ))}
-            <FieldInput
-              label="Keterangan Kenaikan Kelas"
-              value={report.keteranganKenaikanKelas}
-              onChange={(v) => updateReport({ keteranganKenaikanKelas: v })}
-            />
-          </div>
-        )}
+        <div className="space-y-2.5 pt-2 border-t border-slate-200">
+          <div className="text-xs font-semibold text-slate-700">Ekstrakurikuler &amp; Kenaikan</div>
+          {report.ekstrakurikuler.map((eks, idx) => (
+            <div key={eks.id} className="grid grid-cols-3 gap-2">
+              <input
+                type="text"
+                placeholder={`Kegiatan ${idx + 1}`}
+                value={eks.kegiatan}
+                onChange={(e) => {
+                  const next = report.ekstrakurikuler.map((item) =>
+                    item.id === eks.id ? { ...item, kegiatan: e.target.value } : item
+                  );
+                  updateReport({ ekstrakurikuler: next });
+                }}
+                className="px-2 py-1.5 text-xs bg-white border border-slate-300 rounded"
+              />
+              <input
+                type="text"
+                placeholder="Predikat"
+                value={eks.predikat}
+                onChange={(e) => {
+                  const next = report.ekstrakurikuler.map((item) =>
+                    item.id === eks.id ? { ...item, predikat: e.target.value } : item
+                  );
+                  updateReport({ ekstrakurikuler: next });
+                }}
+                className="px-2 py-1.5 text-xs bg-white border border-slate-300 rounded"
+              />
+              <input
+                type="text"
+                placeholder="Keterangan"
+                value={eks.keterangan}
+                onChange={(e) => {
+                  const next = report.ekstrakurikuler.map((item) =>
+                    item.id === eks.id ? { ...item, keterangan: e.target.value } : item
+                  );
+                  updateReport({ ekstrakurikuler: next });
+                }}
+                className="px-2 py-1.5 text-xs bg-white border border-slate-300 rounded"
+              />
+            </div>
+          ))}
+          <FieldInput
+            label="Keterangan Kenaikan Kelas (opsional)"
+            value={report.keteranganKenaikanKelas}
+            onChange={(v) => updateReport({ keteranganKenaikanKelas: v })}
+          />
+        </div>
 
         <AttendanceEditor
           ketidakhadiran={report.ketidakhadiran}
@@ -481,16 +532,230 @@ export function EditorPanel({
     );
   }
 
+  if (activeModule === 'custom' && activeCustomModuleId) {
+    const customList = activeSemester.customModules ?? [];
+    const mod = customList.find((m) => m.id === activeCustomModuleId);
+    if (!mod) {
+      return (
+        <div className="text-xs text-slate-500">
+          Modul kustom tidak ditemukan pada semester ini.
+        </div>
+      );
+    }
+
+    const updateCustomMod = (patch: Partial<CustomRaporModule>) => {
+      updateSemester({
+        customModules: customList.map((m) => (m.id === mod.id ? { ...m, ...patch } : m)),
+      });
+    };
+
+    const addRow = () => {
+      const nextIdx = mod.rows.length + 1;
+      updateCustomMod({
+        rows: [
+          ...mod.rows,
+          {
+            id: `row-${Date.now()}-${nextIdx}`,
+            aspek: `Komponen ${nextIdx}`,
+            nilai: '85',
+            keterangan: 'Menunjukkan penguasaan yang baik.',
+          },
+        ],
+      });
+    };
+
+    const removeRow = (rowId: string) => {
+      updateCustomMod({
+        rows: mod.rows.filter((r) => r.id !== rowId),
+      });
+    };
+
+    return (
+      <div className="space-y-5">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900">
+            Editor Modul: {mod.menuLabel}
+          </h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Atur judul dokumen, tata letak, baris data, dan pengesahan.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2.5">
+          <div className="col-span-2">
+            <FieldInput
+              label="Nama Menu Sidebar"
+              value={mod.menuLabel}
+              onChange={(v) => updateCustomMod({ menuLabel: v })}
+            />
+          </div>
+          <div className="col-span-2">
+            <FieldInput
+              label="Judul Resmi Dokumen (A4)"
+              value={mod.judulDokumen}
+              onChange={(v) => updateCustomMod({ judulDokumen: v })}
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-medium text-slate-600 mb-1">
+              Format Halaman
+            </label>
+            <select
+              value={mod.layout}
+              onChange={(e) =>
+                updateCustomMod({ layout: e.target.value as CustomModuleLayout })
+              }
+              className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500"
+            >
+              <option value="tabel">Tabel Penilaian</option>
+              <option value="narasi">Surat / Narasi</option>
+            </select>
+          </div>
+          <FieldInput
+            label="Tanggal Cetak"
+            value={mod.tanggalCetak}
+            onChange={(v) => updateCustomMod({ tanggalCetak: v })}
+          />
+          <div className="col-span-2">
+            <SignatureModeSelect
+              value={mod.signatureMode}
+              onChange={(v) => updateCustomMod({ signatureMode: v })}
+            />
+          </div>
+        </div>
+
+        {mod.layout === 'tabel' ? (
+          <div className="space-y-3 pt-2 border-t border-slate-200">
+            <div className="text-xs font-semibold text-slate-700">Header Kolom Tabel</div>
+            <div className="grid grid-cols-3 gap-2">
+              <FieldInput
+                label="Kolom 1"
+                value={mod.kolomAspek}
+                onChange={(v) => updateCustomMod({ kolomAspek: v })}
+              />
+              <FieldInput
+                label="Kolom 2"
+                value={mod.kolomNilai}
+                onChange={(v) => updateCustomMod({ kolomNilai: v })}
+              />
+              <FieldInput
+                label="Kolom 3"
+                value={mod.kolomKeterangan}
+                onChange={(v) => updateCustomMod({ kolomKeterangan: v })}
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <div className="text-xs font-semibold text-slate-700">Baris Data</div>
+              <button
+                type="button"
+                onClick={addRow}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-[#008bb8] hover:text-[#00a0d2] cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Tambah Baris</span>
+              </button>
+            </div>
+
+            {mod.rows.map((row, idx) => (
+              <div
+                key={row.id}
+                className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-700">Baris #{idx + 1}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeRow(row.id)}
+                    className="p-1 text-slate-400 hover:text-red-600 cursor-pointer"
+                    title="Hapus baris"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-2">
+                    <FieldInput
+                      label={mod.kolomAspek}
+                      value={row.aspek}
+                      onChange={(v) =>
+                        updateCustomMod({
+                          rows: mod.rows.map((r) => (r.id === row.id ? { ...r, aspek: v } : r)),
+                        })
+                      }
+                    />
+                  </div>
+                  <FieldInput
+                    label={mod.kolomNilai}
+                    value={row.nilai}
+                    onChange={(v) =>
+                      updateCustomMod({
+                        rows: mod.rows.map((r) => (r.id === row.id ? { ...r, nilai: v } : r)),
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                    {mod.kolomKeterangan}
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={row.keterangan}
+                    onChange={(e) =>
+                      updateCustomMod({
+                        rows: mod.rows.map((r) =>
+                          r.id === row.id ? { ...r, keterangan: e.target.value } : r
+                        ),
+                      })
+                    }
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="pt-2 border-t border-slate-200">
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Isi Narasi / Keterangan Resmi
+            </label>
+            <textarea
+              rows={7}
+              value={mod.narasi}
+              onChange={(e) => updateCustomMod({ narasi: e.target.value })}
+              className="w-full px-2.5 py-2 text-xs bg-white border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-sky-500 leading-relaxed"
+            />
+          </div>
+        )}
+
+        <div className="pt-2 border-t border-slate-200">
+          <label className="block text-[11px] font-medium text-slate-600 mb-1">
+            Catatan Tambahan (opsional)
+          </label>
+          <textarea
+            rows={2}
+            value={mod.catatan}
+            onChange={(e) => updateCustomMod({ catatan: e.target.value })}
+            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-sky-500"
+          />
+        </div>
+      </div>
+    );
+  }
+
   // P5 Editor
-  const p5 = student.p5;
-  const updateP5 = (patch: Partial<StudentRecord['p5']>) => {
-    onUpdateStudent({ ...student, p5: { ...p5, ...patch } });
+  const p5 = activeSemester.p5;
+  const updateP5 = (patch: Partial<SemesterPackage['p5']>) => {
+    updateSemester({ p5: { ...p5, ...patch } });
   };
 
   return (
     <div className="space-y-5">
       <div>
-        <h3 className="text-sm font-semibold text-slate-900">Editor Rapor Projek P5</h3>
+        <h3 className="text-sm font-semibold text-slate-900">
+          Editor Rapor Projek P5 ({activeSemester.label})
+        </h3>
         <p className="text-xs text-slate-500 mt-0.5">
           Anda juga dapat mengklik langsung kolom centang (√) pada lembar Rapor P5.
         </p>
@@ -508,14 +773,22 @@ export function EditorPanel({
           onChange={(v) => updateP5({ kelasFooter: v })}
         />
         <FieldInput
+          label="Tahun Pelajaran"
+          value={p5.tahunPelajaran}
+          onChange={(v) => updateP5({ tahunPelajaran: v })}
+          mono
+        />
+        <FieldInput
           label="Tanggal Cetak"
           value={p5.tanggalCetak}
           onChange={(v) => updateP5({ tanggalCetak: v })}
         />
-        <SignatureModeSelect
-          value={p5.signatureMode}
-          onChange={(v) => updateP5({ signatureMode: v })}
-        />
+        <div className="col-span-2">
+          <SignatureModeSelect
+            value={p5.signatureMode}
+            onChange={(v) => updateP5({ signatureMode: v })}
+          />
+        </div>
       </div>
 
       <div className="space-y-4 pt-2 border-t border-slate-200">

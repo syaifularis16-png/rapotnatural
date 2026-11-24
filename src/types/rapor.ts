@@ -88,7 +88,7 @@ export interface EkstrakurikulerItem {
 }
 
 export interface HasilBelajarReport {
-  semester: '1' | '2';
+  semester: string;
   kelas: string;
   tanggalCetak: string;
   signatureMode: SignatureMode;
@@ -127,11 +127,45 @@ export interface P5Report {
   projects: P5Project[];
 }
 
+export type CustomModuleLayout = 'tabel' | 'narasi';
+
+export interface CustomModuleRow {
+  id: string;
+  aspek: string;
+  nilai: string;
+  keterangan: string;
+}
+
+export interface CustomRaporModule {
+  id: string;
+  menuLabel: string;
+  judulDokumen: string;
+  layout: CustomModuleLayout;
+  kolomAspek: string;
+  kolomNilai: string;
+  kolomKeterangan: string;
+  rows: CustomModuleRow[];
+  narasi: string;
+  catatan: string;
+  tanggalCetak: string;
+  signatureMode: SignatureMode;
+}
+
+export interface SemesterPackage {
+  id: string;
+  label: string;
+  semesterNumber: string;
+  tahunPelajaran: string;
+  kelas: string;
+  fase: string;
+  sumatif: SumatifReport;
+  hasilBelajar: HasilBelajarReport;
+  p5: P5Report;
+  customModules?: CustomRaporModule[];
+}
+
 export interface StudentRecord {
   id: string;
   identitas: StudentIdentity;
-  sumatif: SumatifReport;
-  hasilBelajarSem1: HasilBelajarReport;
-  hasilBelajarSem2: HasilBelajarReport;
-  p5: P5Report;
+  semesters: SemesterPackage[];
 }

@@ -62,15 +62,38 @@
     margin: 0;
   }
 
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
   html,
-  body {
+  body,
+  #root {
     background: #ffffff !important;
     margin: 0 !important;
     padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
   }
 
   .no-print {
     display: none !important;
+  }
+
+  .print-layout-reset {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: static !important;
+    width: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
   }
 
   .print-container {
@@ -80,19 +103,21 @@
     display: block !important;
     overflow: visible !important;
     height: auto !important;
+    width: 100% !important;
   }
 
   .print-zoom-wrapper {
     zoom: 1 !important;
     transform: none !important;
-    width: auto !important;
+    width: 100% !important;
     margin: 0 !important;
     gap: 0 !important;
+    display: block !important;
   }
 
   .rapor-sheet {
     box-shadow: none !important;
-    margin: 0 !important;
+    margin: 0 auto !important;
     page-break-after: always;
     break-after: page;
     width: 210mm !important;
