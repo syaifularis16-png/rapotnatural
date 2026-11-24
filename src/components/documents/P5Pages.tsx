@@ -32,7 +32,10 @@ export function P5Pages({
     <>
       {/* HALAMAN 1: Deskripsi Projek P5 */}
       <div className="rapor-sheet" style={{ padding: '14mm 15mm 10mm 15mm' }}>
-        <h1 className="text-center text-[12pt] font-bold tracking-wide mb-5">
+        <h1
+          className="text-center font-bold tracking-wide mb-5"
+          style={{ fontSize: 'calc(12pt * var(--doc-font-scale, 1))' }}
+        >
           RAPOR PROJEK PENGUATAN PROFIL PELAJAR PANCASILA
         </h1>
 
@@ -48,7 +51,10 @@ export function P5Pages({
           />
         </div>
 
-        <div className="mt-4 space-y-5 text-[9.3pt] leading-[1.48] text-gray-900">
+        <div
+          className="mt-4 space-y-5 leading-[1.48] text-gray-900"
+          style={{ fontSize: 'calc(9.3pt * var(--doc-font-scale, 1))' }}
+        >
           {p5.projects.map((proj) => (
             <div key={proj.id}>
               <div className="font-bold mb-1">
@@ -88,8 +94,16 @@ export function P5Pages({
               onUpdateLevel={onUpdateLevel}
             />
             <div className="mt-2.5">
-              <div className="text-[9.5pt] font-bold">Catatan Proses</div>
-              <p className="rapor-catatan-proses text-[9.2pt] leading-[1.42] mt-1 text-justify">
+              <div
+                className="font-bold"
+                style={{ fontSize: 'calc(9.5pt * var(--doc-font-scale, 1))' }}
+              >
+                Catatan Proses
+              </div>
+              <p
+                className="rapor-catatan-proses leading-[1.42] mt-1 text-justify"
+                style={{ fontSize: 'calc(9.2pt * var(--doc-font-scale, 1))' }}
+              >
                 {proj1.catatanProses}
               </p>
             </div>
@@ -118,8 +132,16 @@ export function P5Pages({
       <div className="rapor-sheet" style={{ padding: '13mm 14mm 10mm 14mm' }}>
         {proj2 && (
           <div>
-            <div className="text-[9.5pt] font-bold">Catatan Proses</div>
-            <p className="rapor-catatan-proses text-[9.2pt] leading-[1.42] mt-1 text-justify">
+            <div
+              className="font-bold"
+              style={{ fontSize: 'calc(9.5pt * var(--doc-font-scale, 1))' }}
+            >
+              Catatan Proses
+            </div>
+            <p
+              className="rapor-catatan-proses leading-[1.42] mt-1 text-justify"
+              style={{ fontSize: 'calc(9.2pt * var(--doc-font-scale, 1))' }}
+            >
               {proj2.catatanProses}
             </p>
           </div>
@@ -133,8 +155,16 @@ export function P5Pages({
               onUpdateLevel={onUpdateLevel}
             />
             <div className="mt-2.5">
-              <div className="text-[9.5pt] font-bold">Catatan Proses</div>
-              <p className="rapor-catatan-proses text-[9.2pt] leading-[1.42] mt-1 text-justify">
+              <div
+                className="font-bold"
+                style={{ fontSize: 'calc(9.5pt * var(--doc-font-scale, 1))' }}
+              >
+                Catatan Proses
+              </div>
+              <p
+                className="rapor-catatan-proses leading-[1.42] mt-1 text-justify"
+                style={{ fontSize: 'calc(9.2pt * var(--doc-font-scale, 1))' }}
+              >
                 {proj3.catatanProses}
               </p>
             </div>
@@ -184,7 +214,10 @@ function P5RubricTable({
   }
 
   return (
-    <table className="rapor-table text-[8.5pt] leading-[1.3]">
+    <table
+      className="rapor-table leading-[1.3]"
+      style={{ fontSize: 'calc(8.5pt * var(--doc-font-scale, 1))' }}
+    >
       <thead>
         <tr>
           <th className="w-[335px] text-left font-bold italic py-1.5">
@@ -207,7 +240,11 @@ function P5RubricTable({
           if (row.type === 'dimensi') {
             return (
               <tr key={`dim-${idx}`}>
-                <td colSpan={5} className="font-bold py-1 pl-3 font-serif text-[9pt]">
+                <td
+                  colSpan={5}
+                  className="font-bold py-1 pl-3 font-serif"
+                  style={{ fontSize: 'calc(9pt * var(--doc-font-scale, 1))' }}
+                >
                   {row.dimensi}
                 </td>
               </tr>
@@ -218,7 +255,10 @@ function P5RubricTable({
             <tr key={ind.id}>
               <td className="py-1.5 pl-2 pr-2 align-top">
                 <div className="flex items-start gap-2">
-                  <span className="text-[9pt] leading-[1.3] select-none">
+                  <span
+                    className="leading-[1.3] select-none"
+                    style={{ fontSize: 'calc(9pt * var(--doc-font-scale, 1))' }}
+                  >
                     {ind.marker === 'asterisk' ? '*' : '•'}
                   </span>
                   <span className="text-justify">{ind.deskripsi}</span>
@@ -234,11 +274,12 @@ function P5RubricTable({
                         onUpdateLevel(project.id, ind.id, lvl.key);
                       }
                     }}
-                    className={`text-center font-bold text-[10pt] transition-colors ${
+                    className={`text-center font-bold transition-colors ${
                       interactive
                         ? 'cursor-pointer hover:bg-sky-50'
                         : ''
                     }`}
+                    style={{ fontSize: 'calc(10pt * var(--doc-font-scale, 1))' }}
                     title={interactive ? `Klik untuk pilih ${lvl.line1} ${lvl.line2}` : undefined}
                   >
                     {checked ? '√' : ''}

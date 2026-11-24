@@ -2,6 +2,7 @@ import {
   CustomModuleLayout,
   CustomRaporModule,
   HasilBelajarReport,
+  JpgScanPage,
   P5Report,
   SchoolProfile,
   SemesterPackage,
@@ -476,6 +477,75 @@ const BASE_P5: P5Report = {
   ],
 };
 
+export const DEFAULT_JPG_SCANS: JpgScanPage[] = [
+  {
+    id: 'jpg-1',
+    title: 'Sampul Rapor SMA',
+    category: 'Sampul',
+    imageUrl: '/assets/aistudio/1_215153bd.jpg',
+  },
+  {
+    id: 'jpg-2',
+    title: 'Identitas Peserta Didik',
+    category: 'Identitas',
+    imageUrl: '/assets/aistudio/img20261124_08153972_ff2e2f21.jpg',
+  },
+  {
+    id: 'jpg-3',
+    title: 'Penilaian Sumatif Siswa (Halaman 1)',
+    category: 'Sumatif',
+    imageUrl: '/assets/aistudio/img20261124_08165498_d0a6670f.jpg',
+  },
+  {
+    id: 'jpg-4',
+    title: 'Catatan & Pengesahan STS (Halaman 2)',
+    category: 'Sumatif',
+    imageUrl: '/assets/aistudio/img20261124_08260001_93a76c14.jpg',
+  },
+  {
+    id: 'jpg-5',
+    title: 'Laporan Hasil Belajar Semester 1 (Halaman 1)',
+    category: 'Hasil Belajar',
+    imageUrl: '/assets/aistudio/img20261124_08231333_1e9caa96.jpg',
+  },
+  {
+    id: 'jpg-6',
+    title: 'Laporan Hasil Belajar Semester 2 (Halaman 1)',
+    category: 'Hasil Belajar',
+    imageUrl: '/assets/aistudio/img20261124_08450766_b7ab3c7a.jpg',
+  },
+  {
+    id: 'jpg-7',
+    title: 'Laporan Hasil Belajar Semester 2 (Halaman 2)',
+    category: 'Hasil Belajar',
+    imageUrl: '/assets/aistudio/img20261124_08464506_2a52f8ed.jpg',
+  },
+  {
+    id: 'jpg-8',
+    title: 'Rapor Projek P5 (Halaman 1)',
+    category: 'Rapor P5',
+    imageUrl: '/assets/aistudio/img20261124_08424977_9909b5c5.jpg',
+  },
+  {
+    id: 'jpg-9',
+    title: 'Rapor Projek P5 (Halaman 1 - Scan Alternatif)',
+    category: 'Rapor P5',
+    imageUrl: '/assets/aistudio/img20261124_08265837_3adb1417.jpg',
+  },
+  {
+    id: 'jpg-10',
+    title: 'Rapor Projek P5 (Halaman 2)',
+    category: 'Rapor P5',
+    imageUrl: '/assets/aistudio/img20261124_08285608_71ab447c.jpg',
+  },
+  {
+    id: 'jpg-11',
+    title: 'Rapor Projek P5 (Halaman 3)',
+    category: 'Rapor P5',
+    imageUrl: '/assets/aistudio/img20261124_08435220_8825380c.jpg',
+  },
+];
+
 export const DEFAULT_STUDENTS: StudentRecord[] = [
   {
     id: 'student-florean',
@@ -535,6 +605,7 @@ export const DEFAULT_STUDENTS: StudentRecord[] = [
         p5: structuredClone(BASE_P5),
       },
     ],
+    scanPages: structuredClone(DEFAULT_JPG_SCANS),
   },
 ];
 
@@ -545,7 +616,13 @@ export const DEFAULT_STUDENTS: StudentRecord[] = [
 export function normalizeStudentRecord(raw: unknown): StudentRecord {
   const obj = raw as Record<string, unknown>;
   if (Array.isArray(obj.semesters) && obj.semesters.length > 0) {
-    return obj as unknown as StudentRecord;
+    const typed = obj as unknown as StudentRecord;
+    return {
+      ...typed,
+      scanPages: Array.isArray(typed.scanPages)
+        ? typed.scanPages
+        : structuredClone(DEFAULT_JPG_SCANS),
+    };
   }
   const legacySumatif = (obj.sumatif as SumatifReport | undefined) ?? structuredClone(BASE_SUMATIF_SEM2);
   const legacyHb1 = (obj.hasilBelajarSem1 as HasilBelajarReport | undefined) ?? structuredClone(BASE_HASIL_SEM1);
@@ -579,6 +656,7 @@ export function normalizeStudentRecord(raw: unknown): StudentRecord {
         p5: legacyP5,
       },
     ],
+    scanPages: structuredClone(DEFAULT_JPG_SCANS),
   };
 }
 

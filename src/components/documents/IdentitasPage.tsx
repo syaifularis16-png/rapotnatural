@@ -13,8 +13,14 @@ export function IdentitasPage({
     <div className="rapor-sheet" style={{ padding: '14mm 17mm 14mm 17mm' }}>
       <SchoolWatermarkBackground schoolName={school.namaSekolah} />
 
-      <div className="relative z-10 flex-1 flex flex-col text-[10pt] leading-[1.68] text-gray-900">
-        <h1 className="text-center text-[13pt] font-bold tracking-wide mb-5">
+      <div
+        className="relative z-10 flex-1 flex flex-col leading-[1.62] text-gray-900"
+        style={{ fontSize: 'calc(10pt * var(--doc-font-scale, 1))' }}
+      >
+        <h1
+          className="text-center font-bold tracking-wide mb-5"
+          style={{ fontSize: 'calc(13pt * var(--doc-font-scale, 1))' }}
+        >
           IDENTITAS PESERTA DIDIK
         </h1>
 
@@ -79,7 +85,10 @@ export function IdentitasPage({
           </div>
 
           {/* Signature */}
-          <div className="text-[9.8pt] leading-[1.35] z-10">
+          <div
+            className="leading-[1.35] z-10"
+            style={{ fontSize: 'calc(9.8pt * var(--doc-font-scale, 1))' }}
+          >
             <div>
               {school.kota}, {identitas.tanggalIdentitas}
             </div>
@@ -108,7 +117,7 @@ function IdentityRow({
   value: string;
 }) {
   return (
-    <div className="grid grid-cols-[28px_215px_14px_1fr] items-baseline">
+    <div className="grid grid-cols-[28px_234px_14px_1fr] items-baseline">
       <span className="tabular-nums">{num}</span>
       <span className={subLabel ? 'pl-1' : ''}>{subLabel || label}</span>
       <span>{label || subLabel ? (label?.endsWith(':') ? '' : ':') : ''}</span>

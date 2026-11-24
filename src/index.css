@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+:root {
+  --doc-font-scale: 1;
+}
+
 @layer base {
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
@@ -67,66 +71,101 @@
     print-color-adjust: exact !important;
   }
 
+  :root {
+    --doc-font-scale: var(--user-print-font-scale, 1.15);
+  }
+
   html,
   body,
   #root {
     background: #ffffff !important;
     margin: 0 !important;
     padding: 0 !important;
-    width: 100% !important;
+    width: 210mm !important;
+    min-width: 210mm !important;
+    max-width: 210mm !important;
     height: auto !important;
     overflow: visible !important;
     display: block !important;
+    zoom: 1 !important;
   }
 
   .no-print {
     display: none !important;
   }
 
-  .print-layout-reset {
+  .print-layout-reset,
+  .print-container,
+  .print-zoom-wrapper {
     display: block !important;
+    width: 210mm !important;
+    min-width: 210mm !important;
+    max-width: 210mm !important;
     height: auto !important;
     min-height: 0 !important;
     max-height: none !important;
     overflow: visible !important;
     position: static !important;
-    width: auto !important;
     padding: 0 !important;
-    margin: 0 !important;
-    background: #ffffff !important;
-  }
-
-  .print-container {
-    padding: 0 !important;
-    margin: 0 !important;
-    background: #ffffff !important;
-    display: block !important;
-    overflow: visible !important;
-    height: auto !important;
-    width: 100% !important;
-  }
-
-  .print-zoom-wrapper {
-    zoom: 1 !important;
-    transform: none !important;
-    width: 100% !important;
     margin: 0 !important;
     gap: 0 !important;
-    display: block !important;
+    zoom: 1 !important;
+    transform: none !important;
+    background: #ffffff !important;
   }
 
   .rapor-sheet {
     box-shadow: none !important;
-    margin: 0 auto !important;
+    margin: 0 !important;
     page-break-after: always;
     break-after: page;
     width: 210mm !important;
-    min-height: 297mm !important;
-    height: 297mm !important;
+    min-width: 210mm !important;
+    max-width: 210mm !important;
+    min-height: 296.5mm !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 9mm 11mm 8mm 11mm !important;
+  }
+
+  .rapor-sheet.rapor-sheet-cover {
+    padding: 15mm 16mm 14mm 16mm !important;
+    height: 296.5mm !important;
+    overflow: hidden !important;
+  }
+
+  .rapor-sheet.rapor-sheet-scan {
+    padding: 0 !important;
+    height: 296.5mm !important;
+    overflow: hidden !important;
+  }
+
+  .rapor-table th,
+  .rapor-table td {
+    padding: 3px 6px !important;
   }
 
   .rapor-sheet:last-child {
     page-break-after: auto;
     break-after: auto;
+  }
+
+  .print-sheet-group {
+    display: block !important;
+    width: 210mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .print-sheet-group:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  .print-sheet-group .rapor-sheet {
+    page-break-after: auto !important;
+    break-after: auto !important;
   }
 }

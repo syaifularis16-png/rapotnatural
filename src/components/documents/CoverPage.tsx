@@ -21,10 +21,18 @@ export function CoverPage({
 
         {/* Title */}
         <div className="mt-4">
-          <h1 className="text-[19pt] font-bold tracking-wide text-gray-900 leading-tight">
+          <h1
+            className="font-bold tracking-wide text-gray-900 leading-tight"
+            style={{ fontSize: 'calc(19pt * var(--doc-font-scale, 1))' }}
+          >
             SEKOLAH MENENGAH ATAS
           </h1>
-          <div className="text-[18pt] font-bold tracking-wider text-gray-900 mt-1">( SMA )</div>
+          <div
+            className="font-bold tracking-wider text-gray-900 mt-1"
+            style={{ fontSize: 'calc(18pt * var(--doc-font-scale, 1))' }}
+          >
+            ( SMA )
+          </div>
         </div>
 
         {/* School Emblem */}
@@ -35,22 +43,41 @@ export function CoverPage({
         {/* Student Name & NISN/NIS Boxes */}
         <div className="w-full max-w-[430px] flex flex-col items-center space-y-6 my-2">
           <div className="w-full">
-            <div className="text-[11.5pt] font-bold text-gray-900 mb-2">Nama Peserta Didik</div>
-            <div className="border border-gray-700 bg-white/80 py-2.5 px-4 text-[13pt] font-bold tracking-wide text-gray-900 uppercase">
+            <div
+              className="font-bold text-gray-900 mb-2"
+              style={{ fontSize: 'calc(11.5pt * var(--doc-font-scale, 1))' }}
+            >
+              Nama Peserta Didik
+            </div>
+            <div
+              className="border border-gray-700 bg-white/80 py-2.5 px-4 font-bold tracking-wide text-gray-900 uppercase"
+              style={{ fontSize: 'calc(13pt * var(--doc-font-scale, 1))' }}
+            >
               {identitas.namaLengkap}
             </div>
           </div>
 
           <div className="w-full">
-            <div className="text-[11.5pt] font-bold text-gray-900 mb-2">NISN / NIS</div>
-            <div className="border border-gray-700 bg-white/80 py-2.5 px-4 text-[12.5pt] font-bold tracking-wider text-gray-900 tabular-nums">
+            <div
+              className="font-bold text-gray-900 mb-2"
+              style={{ fontSize: 'calc(11.5pt * var(--doc-font-scale, 1))' }}
+            >
+              NISN / NIS
+            </div>
+            <div
+              className="border border-gray-700 bg-white/80 py-2.5 px-4 font-bold tracking-wider text-gray-900 tabular-nums"
+              style={{ fontSize: 'calc(12.5pt * var(--doc-font-scale, 1))' }}
+            >
               {identitas.nisn} / {identitas.nis}
             </div>
           </div>
         </div>
 
         {/* Bottom Ministry Title */}
-        <div className="mt-6 mb-2 text-[13.5pt] font-bold tracking-wide text-gray-900 leading-[1.45]">
+        <div
+          className="mt-6 mb-2 font-bold tracking-wide text-gray-900 leading-[1.45]"
+          style={{ fontSize: 'calc(13.5pt * var(--doc-font-scale, 1))' }}
+        >
           <div>KEMENTERIAN PENDIDIKAN, KEBUDAYAAN,</div>
           <div>RISET DAN TEKNOLOGI</div>
           <div className="mt-1">REPUBLIK INDONESIA</div>

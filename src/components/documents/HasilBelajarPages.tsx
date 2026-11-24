@@ -34,11 +34,17 @@ export function HasilBelajarPages({
           tahunPelajaran={effectiveTahun}
         />
 
-        <h1 className="text-center text-[11.5pt] font-bold tracking-wide mt-4 mb-3">
+        <h1
+          className="text-center font-bold tracking-wide mt-4 mb-3"
+          style={{ fontSize: 'calc(11.5pt * var(--doc-font-scale, 1))' }}
+        >
           LAPORAN HASIL BELAJAR
         </h1>
 
-        <table className="rapor-table text-[8.6pt] leading-[1.26]">
+        <table
+          className="rapor-table leading-[1.26]"
+          style={{ fontSize: 'calc(8.6pt * var(--doc-font-scale, 1))' }}
+        >
           <thead>
             <tr>
               <th className="w-[30px]">No</th>
@@ -90,7 +96,10 @@ export function HasilBelajarPages({
         {/* Kegiatan Ekstrakurikuler (shown on even semesters or when items exist) */}
         {(isEvenSemester || report.ekstrakurikuler.some((e) => e.kegiatan)) && (
           <div className="mt-6">
-            <table className="rapor-table text-[9pt]">
+            <table
+              className="rapor-table"
+              style={{ fontSize: 'calc(9pt * var(--doc-font-scale, 1))' }}
+            >
               <thead>
                 <tr>
                   <th className="w-[32px]">No</th>
@@ -114,8 +123,11 @@ export function HasilBelajarPages({
         )}
 
         {/* Ketidakhadiran */}
-        <div className="mt-6 w-[310px]">
-          <table className="rapor-table text-[9pt]">
+        <div className="mt-6 w-[320px]">
+          <table
+            className="rapor-table"
+            style={{ fontSize: 'calc(9pt * var(--doc-font-scale, 1))' }}
+          >
             <tbody>
               <tr>
                 <td className="w-[155px] py-[4px]">Sakit</td>
@@ -141,15 +153,26 @@ export function HasilBelajarPages({
 
         {/* Catatan Wali Kelas */}
         <div className="mt-6">
-          <div className="text-[9.5pt] font-bold mb-1.5">Catatan Wali Kelas</div>
-          <div className="border border-gray-600 px-3 py-3 text-[9.2pt] min-h-[58px]">
+          <div
+            className="font-bold mb-1.5"
+            style={{ fontSize: 'calc(9.5pt * var(--doc-font-scale, 1))' }}
+          >
+            Catatan Wali Kelas
+          </div>
+          <div
+            className="border border-gray-600 px-3 py-3 min-h-[58px]"
+            style={{ fontSize: 'calc(9.2pt * var(--doc-font-scale, 1))' }}
+          >
             {report.catatanWaliKelas}
           </div>
         </div>
 
         {/* Keterangan Kenaikan Kelas (Semester 2) */}
         {report.keteranganKenaikanKelas && (
-          <div className="mt-5 border border-gray-600 px-3 py-2.5 text-center text-[9.5pt] font-bold">
+          <div
+            className="mt-5 border border-gray-600 px-3 py-2.5 text-center font-bold"
+            style={{ fontSize: 'calc(9.5pt * var(--doc-font-scale, 1))' }}
+          >
             Keterangan Kenaikan Kelas &nbsp;: &nbsp; {report.keteranganKenaikanKelas}
           </div>
         )}

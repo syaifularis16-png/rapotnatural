@@ -1,10 +1,23 @@
 import React from 'react';
-import { Plus, Trash2, Upload } from 'lucide-react';
-import { calculateAverage } from '../data/defaultData';
+import {
+  AlertCircle,
+  ArrowDown,
+  ArrowUp,
+  CheckCircle2,
+  Loader2,
+  Plus,
+  RotateCcw,
+  ScanText,
+  Trash2,
+  Upload,
+} from 'lucide-react';
+import { calculateAverage, DEFAULT_JPG_SCANS } from '../data/defaultData';
 import {
   CustomModuleLayout,
   CustomRaporModule,
+  DynamicDocumentSpec,
   HasilBelajarReport,
+  JpgScanPage,
   P5Level,
   RaporModule,
   SemesterPackage,
@@ -18,6 +31,11 @@ interface EditorPanelProps {
   activeSemester: SemesterPackage;
   student: StudentRecord;
   onUpdateStudent: (updated: StudentRecord) => void;
+  onUploadScanFiles?: (files: FileList) => void;
+  onParseScanPage?: (pageId: string) => void;
+  onParseAllScanPages?: () => void;
+  isBatchScanning?: boolean;
+  onApplyParsedPage?: (page: JpgScanPage) => void;
 }
 
 const P5_LEVEL_OPTIONS: { value: P5Level; label: string }[] = [
@@ -33,6 +51,11 @@ export function EditorPanel({
   activeSemester,
   student,
   onUpdateStudent,
+  onUploadScanFiles,
+  onParseScanPage,
+  onParseAllScanPages,
+  isBatchScanning = false,
+  onApplyParsedPage,
 }: EditorPanelProps) {
   const updateIdentitas = (patch: Partial<StudentRecord['identitas']>) => {
     onUpdateStudent({
@@ -72,6 +95,13 @@ export function EditorPanel({
             Perubahan langsung memperbarui Sampul dan Halaman Identitas.
           </p>
         </div>
+
+        {onUploadScanFiles && (
+          <QuickOcrUploadCard
+            description="Unggah foto halaman Identitas/Sampul JPG untuk mengisi otomatis semua kolom siswa."
+            onUpload={onUploadScanFiles}
+          />
+        )}
 
         {/* Photo upload */}
         <div className="flex items-center gap-4 pb-4 border-b border-slate-200">
@@ -272,6 +302,13 @@ export function EditorPanel({
           </p>
         </div>
 
+        {onUploadScanFiles && (
+          <QuickOcrUploadCard
+            description="Unggah scan halaman Nilai Sumatif JPG untuk mengisi nilai mapel otomatis via OCR."
+            onUpload={onUploadScanFiles}
+          />
+        )}
+
         <div className="grid grid-cols-2 gap-2.5">
           <FieldInput
             label="Kelas"
@@ -402,6 +439,13 @@ export function EditorPanel({
             Atur nilai akhir, capaian kompetensi, ekstrakurikuler, dan catatan wali kelas.
           </p>
         </div>
+
+        {onUploadScanFiles && (
+          <QuickOcrUploadCard
+            description="Unggah scan halaman Hasil Belajar JPG untuk mengisi nilai akhir & deskripsi via OCR."
+            onUpload={onUploadScanFiles}
+          />
+        )}
 
         <div className="grid grid-cols-2 gap-2.5">
           <FieldInput
@@ -570,6 +614,32 @@ export function EditorPanel({
       });
     };
 
+    const ensureAdaptiveDoc = (): DynamicDocumentSpec =>
+      mod.adaptiveDoc ?? {
+        menuLabel: mod.menuLabel,
+        judulDokumen: mod.judulDokumen,
+        formatStyle: mod.layout === 'narasi' ? 'narasi' : 'tabel',
+        includeStudentHeader: true,
+        metaPairs: [],
+        sections: mod.narasi ? [{ body: mod.narasi }] : [],
+        tables:
+          mod.rows.length > 0
+            ? [
+                {
+                  columns: [mod.kolomAspek, mod.kolomNilai, mod.kolomKeterangan],
+                  rows: mod.rows.map((r) => [r.aspek, r.nilai, r.keterangan]),
+                },
+              ]
+            : [],
+      };
+
+    const updateAdaptiveDoc = (patch: Partial<DynamicDocumentSpec>) => {
+      const base = ensureAdaptiveDoc();
+      updateCustomMod({
+        adaptiveDoc: { ...base, ...patch },
+      });
+    };
+
     return (
       <div className="space-y-5">
         <div>
@@ -577,7 +647,7 @@ export function EditorPanel({
             Editor Modul: {mod.menuLabel}
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Atur judul dokumen, tata letak, baris data, dan pengesahan.
+            Atur judul dokumen, tata letak adaptif hasil OCR, kolom tabel, isi, dan pengesahan.
           </p>
         </div>
 
@@ -602,19 +672,37 @@ export function EditorPanel({
             </label>
             <select
               value={mod.layout}
-              onChange={(e) =>
-                updateCustomMod({ layout: e.target.value as CustomModuleLayout })
-              }
+              onChange={(e) => {
+                const nextLayout = e.target.value as CustomModuleLayout;
+                updateCustomMod({
+                  layout: nextLayout,
+                  ...(nextLayout === 'adaptif' && !mod.adaptiveDoc
+                    ? { adaptiveDoc: ensureAdaptiveDoc() }
+                    : {}),
+                });
+              }}
               className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500"
             >
-              <option value="tabel">Tabel Penilaian</option>
+              {mod.adaptiveDoc && (
+                <option value="adaptif">Format Adaptif Hasil Scan OCR</option>
+              )}
+              <option value="tabel">Tabel Penilaian Standar</option>
               <option value="narasi">Surat / Narasi</option>
             </select>
           </div>
           <FieldInput
             label="Tanggal Cetak"
             value={mod.tanggalCetak}
-            onChange={(v) => updateCustomMod({ tanggalCetak: v })}
+            onChange={(v) => {
+              if (mod.layout === 'adaptif' && mod.adaptiveDoc) {
+                updateCustomMod({
+                  tanggalCetak: v,
+                  adaptiveDoc: { ...mod.adaptiveDoc, tanggalCetak: v },
+                });
+              } else {
+                updateCustomMod({ tanggalCetak: v });
+              }
+            }}
           />
           <div className="col-span-2">
             <SignatureModeSelect
@@ -624,7 +712,458 @@ export function EditorPanel({
           </div>
         </div>
 
-        {mod.layout === 'tabel' ? (
+        {mod.layout === 'adaptif' && mod.adaptiveDoc ? (
+          (() => {
+            const dyn = mod.adaptiveDoc;
+            const tables = dyn.tables ?? [];
+            const sections = dyn.sections ?? [];
+            const metaPairs = dyn.metaPairs ?? [];
+
+            return (
+              <div className="space-y-4 pt-2 border-t border-slate-200">
+                {/* PRIMARY FOCUS: Dynamic Output Tables */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-800">
+                      Tabel Output OCR ({tables.length})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateAdaptiveDoc({
+                          tables: [
+                            ...tables,
+                            {
+                              title: `Tabel #${tables.length + 1}`,
+                              columns: ['No', 'Komponen', 'Nilai', 'Keterangan'],
+                              rows: [['1', 'Komponen 1', '-', '']],
+                            },
+                          ],
+                        })
+                      }
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-[#008bb8] cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Tambah Tabel</span>
+                    </button>
+                  </div>
+
+                  {tables.length === 0 && (
+                    <div className="p-3 bg-slate-50 border border-dashed border-slate-300 rounded-lg text-[11px] text-slate-500 text-center">
+                      Belum ada tabel. Klik <strong>+ Tambah Tabel</strong> untuk membuat tabel output.
+                    </div>
+                  )}
+
+                  {tables.map((tbl, tIdx) => (
+                    <div
+                      key={tIdx}
+                      className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2.5"
+                    >
+                      <div className="flex items-end justify-between gap-2">
+                        <div className="flex-1">
+                          <FieldInput
+                            label={`Judul Tabel #${tIdx + 1} (opsional)`}
+                            value={tbl.title ?? ''}
+                            onChange={(v) =>
+                              updateAdaptiveDoc({
+                                tables: tables.map((t, i) =>
+                                  i === tIdx ? { ...t, title: v || undefined } : t
+                                ),
+                              })
+                            }
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateAdaptiveDoc({
+                              tables: tables.filter((_, i) => i !== tIdx),
+                            })
+                          }
+                          className="p-1.5 text-slate-400 hover:text-red-600 cursor-pointer"
+                          title="Hapus tabel ini"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-medium text-slate-600">
+                            Kolom Tabel ({tbl.columns.length})
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateAdaptiveDoc({
+                                tables: tables.map((t, i) =>
+                                  i !== tIdx
+                                    ? t
+                                    : {
+                                        ...t,
+                                        columns: [...t.columns, `Kolom ${t.columns.length + 1}`],
+                                        rows: t.rows.map((row) => [...row, '']),
+                                      }
+                                ),
+                              })
+                            }
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#008bb8] cursor-pointer"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>Tambah Kolom</span>
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {tbl.columns.map((col, cIdx) => (
+                            <div key={cIdx} className="flex items-center gap-1">
+                              <input
+                                type="text"
+                                value={col}
+                                onChange={(e) =>
+                                  updateAdaptiveDoc({
+                                    tables: tables.map((t, i) =>
+                                      i !== tIdx
+                                        ? t
+                                        : {
+                                            ...t,
+                                            columns: t.columns.map((c, j) =>
+                                              j === cIdx ? e.target.value : c
+                                            ),
+                                          }
+                                    ),
+                                  })
+                                }
+                                className="w-full px-2 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium"
+                              />
+                              {tbl.columns.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateAdaptiveDoc({
+                                      tables: tables.map((t, i) =>
+                                        i !== tIdx
+                                          ? t
+                                          : {
+                                              ...t,
+                                              columns: t.columns.filter((_, j) => j !== cIdx),
+                                              rows: t.rows.map((row) =>
+                                                row.filter((_, j) => j !== cIdx)
+                                              ),
+                                            }
+                                      ),
+                                    })
+                                  }
+                                  className="p-0.5 text-slate-400 hover:text-red-600 cursor-pointer shrink-0"
+                                  title="Hapus kolom"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-medium text-slate-600">
+                            Baris ({tbl.rows.length})
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateAdaptiveDoc({
+                                tables: tables.map((t, i) =>
+                                  i !== tIdx
+                                    ? t
+                                    : {
+                                        ...t,
+                                        rows: [
+                                          ...t.rows,
+                                          t.columns.map((_, cIdx) =>
+                                            cIdx === 0 ? String(t.rows.length + 1) : ''
+                                          ),
+                                        ],
+                                      }
+                                ),
+                              })
+                            }
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#008bb8] cursor-pointer"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>Tambah Baris</span>
+                          </button>
+                        </div>
+
+                        {tbl.rows.map((cells, rIdx) => (
+                          <div
+                            key={rIdx}
+                            className="p-2 bg-white border border-slate-200 rounded space-y-1.5"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10.5px] font-semibold text-slate-500">
+                                Baris #{rIdx + 1}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateAdaptiveDoc({
+                                    tables: tables.map((t, i) =>
+                                      i !== tIdx
+                                        ? t
+                                        : {
+                                            ...t,
+                                            rows: t.rows.filter((_, j) => j !== rIdx),
+                                          }
+                                    ),
+                                  })
+                                }
+                                className="p-0.5 text-slate-400 hover:text-red-600 cursor-pointer"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                            <div className="space-y-1">
+                              {tbl.columns.map((colName, cIdx) => (
+                                <div key={cIdx} className="grid grid-cols-[90px_1fr] items-center gap-1.5">
+                                  <span className="text-[10.5px] text-slate-500 truncate">
+                                    {colName}
+                                  </span>
+                                  <input
+                                    type="text"
+                                    value={cells[cIdx] ?? ''}
+                                    onChange={(e) =>
+                                      updateAdaptiveDoc({
+                                        tables: tables.map((t, i) =>
+                                          i !== tIdx
+                                            ? t
+                                            : {
+                                                ...t,
+                                                rows: t.rows.map((row, rJ) =>
+                                                  rJ !== rIdx
+                                                    ? row
+                                                    : tbl.columns.map((_, colK) =>
+                                                        colK === cIdx
+                                                          ? e.target.value
+                                                          : row[colK] ?? ''
+                                                      )
+                                                ),
+                                              }
+                                        ),
+                                      })
+                                    }
+                                    className="px-2 py-1 text-[11px] bg-slate-50 border border-slate-200 rounded"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Kop, Subjudul & Header Siswa */}
+                <div className="space-y-2.5 pt-2 border-t border-slate-200">
+                  <div className="text-xs font-semibold text-slate-700">
+                    Kop, Subjudul &amp; Kepala Siswa
+                  </div>
+                  <FieldInput
+                    label="Subjudul (opsional)"
+                    value={dyn.subJudul ?? ''}
+                    onChange={(v) => updateAdaptiveDoc({ subJudul: v || undefined })}
+                  />
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                      Kop Instansi / Surat (opsional)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={dyn.instansiHeader ?? ''}
+                      onChange={(e) =>
+                        updateAdaptiveDoc({ instansiHeader: e.target.value || undefined })
+                      }
+                      className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={dyn.includeStudentHeader}
+                      onChange={(e) =>
+                        updateAdaptiveDoc({ includeStudentHeader: e.target.checked })
+                      }
+                    />
+                    <span>Tampilkan Header Identitas Siswa Standar</span>
+                  </label>
+                </div>
+
+                {/* Meta Pairs */}
+                <div className="space-y-2 pt-2 border-t border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-700">
+                      Metadata / Keterangan Atas ({metaPairs.length})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateAdaptiveDoc({
+                          metaPairs: [...metaPairs, { label: 'Label', value: 'Isi' }],
+                        })
+                      }
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-[#008bb8] cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Tambah</span>
+                    </button>
+                  </div>
+                  {metaPairs.map((pair, idx) => (
+                    <div key={idx} className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={pair.label}
+                        onChange={(e) =>
+                          updateAdaptiveDoc({
+                            metaPairs: metaPairs.map((p, i) =>
+                              i === idx ? { ...p, label: e.target.value } : p
+                            ),
+                          })
+                        }
+                        placeholder="Label"
+                        className="w-2/5 px-2 py-1 text-xs bg-white border border-slate-300 rounded"
+                      />
+                      <input
+                        type="text"
+                        value={pair.value}
+                        onChange={(e) =>
+                          updateAdaptiveDoc({
+                            metaPairs: metaPairs.map((p, i) =>
+                              i === idx ? { ...p, value: e.target.value } : p
+                            ),
+                          })
+                        }
+                        placeholder="Nilai"
+                        className="flex-1 px-2 py-1 text-xs bg-white border border-slate-300 rounded"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateAdaptiveDoc({
+                            metaPairs: metaPairs.filter((_, i) => i !== idx),
+                          })
+                        }
+                        className="p-1 text-slate-400 hover:text-red-600 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Narrative Sections */}
+                <div className="space-y-2 pt-2 border-t border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-700">
+                      Paragraf / Ketentuan ({sections.length})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateAdaptiveDoc({
+                          sections: [...sections, { heading: '', body: 'Isi paragraf baru.' }],
+                        })
+                      }
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-[#008bb8] cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Tambah Bagian</span>
+                    </button>
+                  </div>
+                  {sections.map((sec, idx) => (
+                    <div key={idx} className="p-2.5 bg-slate-50 border border-slate-200 rounded space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <input
+                          type="text"
+                          value={sec.heading ?? ''}
+                          onChange={(e) =>
+                            updateAdaptiveDoc({
+                              sections: sections.map((s, i) =>
+                                i === idx ? { ...s, heading: e.target.value } : s
+                              ),
+                            })
+                          }
+                          placeholder="Judul bagian (opsional)"
+                          className="flex-1 px-2 py-1 text-xs bg-white border border-slate-300 rounded"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateAdaptiveDoc({
+                              sections: sections.filter((_, i) => i !== idx),
+                            })
+                          }
+                          className="p-1 text-slate-400 hover:text-red-600 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <textarea
+                        rows={2}
+                        value={sec.body}
+                        onChange={(e) =>
+                          updateAdaptiveDoc({
+                            sections: sections.map((s, i) =>
+                              i === idx ? { ...s, body: e.target.value } : s
+                            ),
+                          })
+                        }
+                        className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Signers */}
+                <div className="space-y-2 pt-2 border-t border-slate-200">
+                  <div className="text-xs font-semibold text-slate-700">
+                    Penandatangan Dokumen
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <FieldInput
+                      label="Jabatan Kiri"
+                      value={dyn.signerLeftTitle ?? ''}
+                      onChange={(v) => updateAdaptiveDoc({ signerLeftTitle: v || undefined })}
+                    />
+                    <FieldInput
+                      label="Nama Kiri"
+                      value={dyn.signerLeftName ?? ''}
+                      onChange={(v) => updateAdaptiveDoc({ signerLeftName: v || undefined })}
+                    />
+                    <FieldInput
+                      label="Jabatan Kanan"
+                      value={dyn.signerRightTitle ?? ''}
+                      onChange={(v) => updateAdaptiveDoc({ signerRightTitle: v || undefined })}
+                    />
+                    <FieldInput
+                      label="Nama Kanan"
+                      value={dyn.signerRightName ?? ''}
+                      onChange={(v) => updateAdaptiveDoc({ signerRightName: v || undefined })}
+                    />
+                    <div className="col-span-2">
+                      <FieldInput
+                        label="NIP Penandatangan Kanan"
+                        value={dyn.signerRightNip ?? ''}
+                        onChange={(v) => updateAdaptiveDoc({ signerRightNip: v || undefined })}
+                        mono
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()
+        ) : mod.layout === 'tabel' ? (
           <div className="space-y-3 pt-2 border-t border-slate-200">
             <div className="text-xs font-semibold text-slate-700">Header Kolom Tabel</div>
             <div className="grid grid-cols-3 gap-2">
@@ -731,14 +1270,286 @@ export function EditorPanel({
 
         <div className="pt-2 border-t border-slate-200">
           <label className="block text-[11px] font-medium text-slate-600 mb-1">
-            Catatan Tambahan (opsional)
+            Catatan / Ketentuan (opsional)
           </label>
           <textarea
             rows={2}
-            value={mod.catatan}
-            onChange={(e) => updateCustomMod({ catatan: e.target.value })}
+            value={
+              mod.layout === 'adaptif' && mod.adaptiveDoc
+                ? mod.adaptiveDoc.catatan ?? mod.catatan
+                : mod.catatan
+            }
+            onChange={(e) => {
+              const val = e.target.value;
+              if (mod.layout === 'adaptif' && mod.adaptiveDoc) {
+                updateCustomMod({
+                  catatan: val,
+                  adaptiveDoc: { ...mod.adaptiveDoc, catatan: val || undefined },
+                });
+              } else {
+                updateCustomMod({ catatan: val });
+              }
+            }}
             className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-sky-500"
           />
+        </div>
+      </div>
+    );
+  }
+
+  if (activeModule === 'scan_jpg') {
+    const scanPages = student.scanPages ?? [];
+    const SCAN_CATEGORIES: JpgScanPage['category'][] = [
+      'Sampul',
+      'Identitas',
+      'Sumatif',
+      'Hasil Belajar',
+      'Rapor P5',
+      'Lainnya',
+    ];
+
+    const updateScanPages = (nextPages: JpgScanPage[]) => {
+      onUpdateStudent({
+        ...student,
+        scanPages: nextPages,
+      });
+    };
+
+    const handleUploadScans = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files;
+      if (!files || files.length === 0) return;
+
+      if (onUploadScanFiles) {
+        onUploadScanFiles(files);
+        e.target.value = '';
+        return;
+      }
+
+      const loaded = await Promise.all(
+        Array.from(files).map(
+          (file, index) =>
+            new Promise<JpgScanPage | null>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                if (typeof reader.result === 'string') {
+                  const cleanTitle = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]+/g, ' ');
+                  resolve({
+                    id: `scan-${Date.now()}-${index}`,
+                    title: cleanTitle || `Halaman Scan ${scanPages.length + index + 1}`,
+                    category: 'Lainnya',
+                    imageUrl: reader.result,
+                  });
+                } else {
+                  resolve(null);
+                }
+              };
+              reader.onerror = () => resolve(null);
+              reader.readAsDataURL(file);
+            })
+        )
+      );
+
+      const valid = loaded.filter((item): item is JpgScanPage => item !== null);
+      if (valid.length > 0) {
+        updateScanPages([...scanPages, ...valid]);
+      }
+      e.target.value = '';
+    };
+
+    const movePage = (idx: number, dir: -1 | 1) => {
+      const target = idx + dir;
+      if (target < 0 || target >= scanPages.length) return;
+      const copy = [...scanPages];
+      const [item] = copy.splice(idx, 1);
+      copy.splice(target, 0, item);
+      updateScanPages(copy);
+    };
+
+    return (
+      <div className="space-y-5">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900">
+            Editor &amp; Pembaca Scan JPG
+          </h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Saat mengunggah gambar rapor (.jpg / .png), sistem otomatis membaca dan menerjemahkannya ke data siswa.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#00a0d2] hover:bg-[#008bb8] rounded-md cursor-pointer transition-colors">
+            <Upload className="w-3.5 h-3.5" />
+            <span>Upload &amp; Baca JPG</span>
+            <input
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/webp"
+              multiple
+              onChange={handleUploadScans}
+              className="sr-only"
+            />
+          </label>
+
+          {onParseAllScanPages && (
+            <button
+              type="button"
+              disabled={isBatchScanning || scanPages.length === 0}
+              onClick={onParseAllScanPages}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#008bb8] bg-[#00a0d2]/10 border border-[#00a0d2]/40 rounded-md hover:bg-[#00a0d2]/15 cursor-pointer transition-colors disabled:opacity-50"
+            >
+              {isBatchScanning ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <ScanText className="w-3.5 h-3.5" />
+              )}
+              <span>{isBatchScanning ? 'Membaca OCR...' : 'Baca Semua OCR'}</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => updateScanPages(structuredClone(DEFAULT_JPG_SCANS))}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 cursor-pointer transition-colors"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Kembalikan 11 Scan Asli</span>
+          </button>
+        </div>
+
+        <div className="space-y-3 pt-2 border-t border-slate-200">
+          <div className="text-xs font-semibold text-slate-700 font-mono-tabular">
+            Daftar Halaman ({scanPages.length})
+          </div>
+
+          {scanPages.length === 0 ? (
+            <div className="p-4 bg-slate-50 border border-dashed border-slate-300 rounded-lg text-xs text-slate-500 text-center">
+              Belum ada halaman scan. Gunakan tombol Upload &amp; Baca JPG di atas.
+            </div>
+          ) : (
+            scanPages.map((page, idx) => (
+              <div
+                key={page.id}
+                className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2.5"
+              >
+                <div className="flex items-start gap-2.5">
+                  <img
+                    src={page.imageUrl}
+                    alt={page.title}
+                    className="w-12 h-16 object-cover border border-slate-300 rounded bg-white shrink-0"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[11px] font-semibold text-slate-600 font-mono-tabular">
+                        Hal. {idx + 1}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => movePage(idx, -1)}
+                          disabled={idx === 0}
+                          className="p-1 text-slate-500 hover:text-slate-800 disabled:opacity-30 cursor-pointer"
+                          title="Geser ke atas"
+                        >
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => movePage(idx, 1)}
+                          disabled={idx === scanPages.length - 1}
+                          className="p-1 text-slate-500 hover:text-slate-800 disabled:opacity-30 cursor-pointer"
+                          title="Geser ke bawah"
+                        >
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateScanPages(scanPages.filter((p) => p.id !== page.id))
+                          }
+                          className="p-1 text-slate-400 hover:text-red-600 cursor-pointer"
+                          title="Hapus halaman"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <FieldInput
+                      label="Judul Halaman"
+                      value={page.title}
+                      onChange={(v) =>
+                        updateScanPages(
+                          scanPages.map((p) => (p.id === page.id ? { ...p, title: v } : p))
+                        )
+                      }
+                    />
+                    <FieldSelect
+                      label="Kategori"
+                      value={page.category}
+                      options={SCAN_CATEGORIES}
+                      onChange={(v) =>
+                        updateScanPages(
+                          scanPages.map((p) =>
+                            p.id === page.id
+                              ? { ...p, category: v as JpgScanPage['category'] }
+                              : p
+                          )
+                        )
+                      }
+                    />
+
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      {onParseScanPage && (
+                        <button
+                          type="button"
+                          disabled={page.scanStatus === 'scanning'}
+                          onClick={() => onParseScanPage(page.id)}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-[#008bb8] bg-white border border-[#00a0d2]/40 rounded hover:bg-[#00a0d2]/10 cursor-pointer disabled:opacity-50"
+                        >
+                          {page.scanStatus === 'scanning' ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <ScanText className="w-3 h-3" />
+                          )}
+                          <span>
+                            {page.scanStatus === 'scanning'
+                              ? 'Membaca...'
+                              : page.parsedData
+                                ? 'Baca Ulang OCR'
+                                : 'Baca OCR'}
+                          </span>
+                        </button>
+                      )}
+                      {page.parsedData && onApplyParsedPage && (
+                        <button
+                          type="button"
+                          onClick={() => onApplyParsedPage(page)}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-300 rounded hover:bg-emerald-100 cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>Terapkan</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {page.scanStatus === 'error' && page.scanError && (
+                      <div className="p-2 bg-red-50 border border-red-200 rounded text-[11px] text-red-700 flex items-start gap-1.5">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                        <span>{page.scanError}</span>
+                      </div>
+                    )}
+
+                    {page.scanStatus === 'done' && page.parsedData?.confidenceSummary && (
+                      <div className="p-2 bg-emerald-50 border border-emerald-200 rounded text-[11px] text-emerald-800 flex items-start gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-600" />
+                        <span>{page.parsedData.confidenceSummary}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     );
@@ -760,6 +1571,13 @@ export function EditorPanel({
           Anda juga dapat mengklik langsung kolom centang (√) pada lembar Rapor P5.
         </p>
       </div>
+
+      {onUploadScanFiles && (
+        <QuickOcrUploadCard
+          description="Unggah scan halaman Rapor P5 JPG untuk mengisi dimensi & centang otomatis via OCR."
+          onUpload={onUploadScanFiles}
+        />
+      )}
 
       <div className="grid grid-cols-2 gap-2.5">
         <FieldInput
@@ -877,6 +1695,42 @@ export function EditorPanel({
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function QuickOcrUploadCard({
+  description,
+  onUpload,
+}: {
+  description: string;
+  onUpload: (files: FileList) => void;
+}) {
+  return (
+    <div className="p-3 bg-sky-50/70 border border-sky-200 rounded-lg space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+          <ScanText className="w-3.5 h-3.5 text-[#00a0d2]" />
+          <span>Isi Otomatis via Scan OCR</span>
+        </span>
+        <label className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-white bg-[#00a0d2] hover:bg-[#008bb8] rounded cursor-pointer transition-colors shrink-0">
+          <Upload className="w-3 h-3" />
+          <span>Pilih JPG</span>
+          <input
+            type="file"
+            accept="image/jpeg,image/jpg,image/png,image/webp"
+            multiple
+            onChange={(e) => {
+              if (e.target.files && e.target.files.length > 0) {
+                onUpload(e.target.files);
+                e.target.value = '';
+              }
+            }}
+            className="sr-only"
+          />
+        </label>
+      </div>
+      <p className="text-[11px] text-slate-600 leading-snug">{description}</p>
     </div>
   );
 }

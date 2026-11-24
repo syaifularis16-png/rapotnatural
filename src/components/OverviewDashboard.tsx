@@ -6,6 +6,7 @@ import {
   BookOpen,
   CheckSquare,
   ClipboardCheck,
+  FileImage,
   FileText,
   Plus,
   Printer,
@@ -200,12 +201,12 @@ export function OverviewDashboard({
 
               <button
                 type="button"
-                onClick={() => onNavigateModule('sumatif')}
+                onClick={onPrintBundle}
                 className="flex flex-col items-center justify-center py-2.5 px-3 border border-[#00a0d2]/50 rounded bg-[#00a0d2]/[0.03] hover:bg-[#00a0d2]/10 transition-colors cursor-pointer"
               >
                 <Printer className="w-5 h-5 text-[#00a0d2] mb-1" />
                 <span className="text-xs font-medium text-[#008bb8] whitespace-nowrap">
-                  Lihat Rapor
+                  Cetak Rapor
                 </span>
               </button>
             </div>
@@ -431,6 +432,16 @@ export function OverviewDashboard({
               onClick={() => onNavigateModule('p5')}
             />
 
+            <ServiceRow
+              icon={<FileImage className="w-5 h-5 text-rose-600" />}
+              iconBg="bg-rose-50 border-rose-200"
+              title="Rapor Versi Scan JPG (OCR)"
+              statusText={`${(student.scanPages ?? []).length} halaman scan JPG siap cetak & OCR`}
+              statusTone={(student.scanPages ?? []).length > 0 ? 'ok' : 'warn'}
+              description="Arsip 11 lembar scan asli, unggah JPG/PNG, & baca OCR otomatis ke Identitas, Sumatif, Hasil Belajar, dan P5"
+              onClick={() => onNavigateModule('scan_jpg')}
+            />
+
             {(activeSemester.customModules ?? []).map((mod) => (
               <ServiceRow
                 key={mod.id}
@@ -438,9 +449,11 @@ export function OverviewDashboard({
                 iconBg="bg-violet-50 border-violet-200"
                 title={mod.menuLabel}
                 statusText={
-                  mod.layout === 'tabel'
-                    ? `${mod.rows.length} baris data · Modul Tambahan`
-                    : 'Format Narasi · Modul Tambahan'
+                  mod.layout === 'adaptif'
+                    ? `Format Adaptif OCR · ${mod.adaptiveDoc?.tables?.length ?? 0} tabel`
+                    : mod.layout === 'tabel'
+                      ? `${mod.rows.length} baris data · Modul Tambahan`
+                      : 'Format Narasi · Modul Tambahan'
                 }
                 statusTone="ok"
                 description={`${mod.judulDokumen} · Tanggal cetak ${mod.tanggalCetak}`}

@@ -24,7 +24,10 @@ export function RaporStudentHeader({
   tahunPelajaran,
 }: HeaderBlockProps) {
   return (
-    <div className="grid grid-cols-[1.35fr_0.9fr] gap-4 text-[9.5pt] leading-[1.48] text-gray-900">
+    <div
+      className="grid grid-cols-[1.35fr_0.9fr] gap-4 leading-[1.48] text-gray-900"
+      style={{ fontSize: 'calc(9.5pt * var(--doc-font-scale, 1))' }}
+    >
       <div className="grid grid-cols-[105px_12px_1fr]">
         <span>Nama</span>
         <span>:</span>
@@ -82,7 +85,10 @@ export function RaporFooter({
   halaman: number;
 }) {
   return (
-    <div className="mt-auto pt-2 border-t border-gray-400 flex items-center justify-between text-[7.5pt] text-gray-800 tracking-tight">
+    <div
+      className="mt-auto pt-2 border-t border-gray-400 flex items-center justify-between text-gray-800 tracking-tight"
+      style={{ fontSize: 'calc(7.5pt * var(--doc-font-scale, 1))' }}
+    >
       <div className="font-bold uppercase">
         <span>{kelas}</span>
         <span className="mx-2 text-gray-400">|</span>
@@ -114,7 +120,10 @@ export function SignatureBlock({
   docLabel: string;
 }) {
   return (
-    <div className="mt-4 text-[9.5pt] leading-[1.38] text-gray-900">
+    <div
+      className="mt-4 leading-[1.38] text-gray-900"
+      style={{ fontSize: 'calc(9.5pt * var(--doc-font-scale, 1))' }}
+    >
       <div className="grid grid-cols-2 gap-8 items-start">
         {/* Left: Orang Tua/Wali */}
         <div className="pl-2">

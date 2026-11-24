@@ -1,10 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import {
+  AlertCircle,
+  ArrowRight,
   Award,
   BookOpen,
   Building2,
   CalendarPlus,
+  CheckCircle2,
   CheckSquare,
   ChevronDown,
   ChevronLeft,
@@ -13,18 +16,24 @@ import {
   ClipboardCheck,
   Download,
   Edit3,
+  ExternalLink,
   Eye,
+  FileImage,
   FilePlus2,
   FileStack,
   FileText,
   LayoutDashboard,
+  Loader2,
   Plus,
   Printer,
   RotateCcw,
+  ScanText,
   Search,
   Square,
   Trash2,
+  Upload,
   UserCheck,
+  X,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
@@ -38,7 +47,9 @@ import {
 } from './data/defaultData';
 import {
   CustomModuleLayout,
+  JpgScanPage,
   P5Level,
+  ParsedScanResult,
   RaporModule,
   SchoolProfile,
   SemesterPackage,
@@ -50,6 +61,7 @@ import { SumatifPage } from './components/documents/SumatifPage';
 import { HasilBelajarPages } from './components/documents/HasilBelajarPages';
 import { P5Pages } from './components/documents/P5Pages';
 import { CustomModulePage } from './components/documents/CustomModulePage';
+import { ScanJpgPages } from './components/documents/ScanJpgPages';
 import { EditorPanel } from './components/EditorPanel';
 import {
   AddModuleModal,
@@ -58,6 +70,12 @@ import {
   SchoolSettingsModal,
 } from './components/Modals';
 import { OverviewDashboard } from './components/OverviewDashboard';
+import {
+  applyParsedScanToStudent,
+  createStudentFromParsedScan,
+  parseScanImageViaApi,
+  upsertCustomModuleInStudent,
+} from './utils/scanParser';
 
 const STORAGE_KEY = 'erapor_sman2_pasuruan_v1';
 
@@ -74,6 +92,7 @@ const RAIL_ITEMS: {
   { id: 'sumatif', label: 'Sumatif', icon: ClipboardCheck },
   { id: 'hasil_belajar', label: 'Rapor', icon: FileText },
   { id: 'p5', label: 'Projek P5', icon: Award },
+  { id: 'scan_jpg', label: 'Versi JPG', icon: FileImage },
 ];
 
 export default function App() {
@@ -116,8 +135,21 @@ export default function App() {
   const [zoom, setZoom] = useState<number>(0.78);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [printAllBundle, setPrintAllBundle] = useState<boolean>(false);
+  const [isPrinting, setIsPrinting] = useState<boolean>(false);
+  const [printFontScale, setPrintFontScale] = useState<number>(1.15);
   const [filtersOpen, setFiltersOpen] = useState<boolean>(true);
   const [classTagFilter, setClassTagFilter] = useState<string>('');
+  const [scanCategoryFilter, setScanCategoryFilter] = useState<string>('Semua');
+  const [uploadScanMode, setUploadScanMode] = useState<'apply_active' | 'new_student' | 'preview_only'>('apply_active');
+  const [isBatchScanning, setIsBatchScanning] = useState<boolean>(false);
+  const [scanBanner, setScanBanner] = useState<{
+    type: 'success' | 'error' | 'info';
+    message: string;
+    detail?: string;
+    targetModule?: RaporModule;
+    createdCustomModuleId?: string;
+    createdCustomModuleLabel?: string;
+  } | null>(null);
 
   const [secSemestersOpen, setSecSemestersOpen] = useState<boolean>(true);
   const [secModulesOpen, setSecModulesOpen] = useState<boolean>(true);
@@ -128,6 +160,9 @@ export default function App() {
   const [addSemesterOpen, setAddSemesterOpen] = useState<boolean>(false);
   const [addModuleOpen, setAddModuleOpen] = useState<boolean>(false);
   const [schoolModalOpen, setSchoolModalOpen] = useState<boolean>(false);
+  const [printFallbackModal, setPrintFallbackModal] = useState<{
+    bundle: boolean;
+  } | null>(null);
   const printAreaRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -139,8 +174,13 @@ export default function App() {
   }, [school, students]);
 
   useEffect(() => {
+    document.documentElement.style.setProperty('--user-print-font-scale', String(printFontScale));
+  }, [printFontScale]);
+
+  useEffect(() => {
     const onAfterPrint = () => {
       setPrintAllBundle(false);
+      setIsPrinting(false);
     };
     window.addEventListener('afterprint', onAfterPrint);
     return () => window.removeEventListener('afterprint', onAfterPrint);
@@ -329,32 +369,353 @@ export default function App() {
     });
   };
 
-  const handlePrintCurrent = () => {
-    flushSync(() => {
-      if (activeView === 'overview') {
-        setPrintAllBundle(true);
-      } else {
-        setPrintAllBundle(false);
-      }
+  const studentsRef = useRef(students);
+  studentsRef.current = students;
+  const schoolRef = useRef(school);
+  schoolRef.current = school;
+
+  const patchStudentById = (
+    studentId: string,
+    updater: (stu: StudentRecord) => StudentRecord
+  ) => {
+    setStudents((prev) => prev.map((s) => (s.id === studentId ? updater(s) : s)));
+  };
+
+  const applyParsedResultToState = (
+    studentId: string,
+    semesterId: string,
+    parsed: ParsedScanResult,
+    sourcePage?: { id: string; title: string; imageUrl: string },
+    mode: 'apply_active' | 'new_student' = 'apply_active'
+  ): { studentId: string; semesterId: string; createdCustomModuleId?: string } => {
+    const currentSchool = schoolRef.current;
+
+    if (mode === 'new_student') {
+      const created = createStudentFromParsedScan(parsed, currentSchool, sourcePage);
+      schoolRef.current = created.updatedSchool;
+      setSchool(created.updatedSchool);
+      studentsRef.current = [...studentsRef.current, created.newStudent];
+      setStudents((prev) => [...prev, created.newStudent]);
+      setSelectedStudentId(created.newStudent.id);
+      setActiveSemesterId(created.newStudent.semesters[0].id);
+      setScanBanner({
+        type: 'success',
+        message: `Siswa baru "${created.newStudent.identitas.namaLengkap}" & modul "${created.createdCustomModuleLabel}" berhasil dibuat.`,
+        detail: parsed.confidenceSummary,
+        targetModule: created.targetModule,
+        createdCustomModuleId: created.createdCustomModuleId,
+        createdCustomModuleLabel: created.createdCustomModuleLabel,
+      });
+      return {
+        studentId: created.newStudent.id,
+        semesterId: created.newStudent.semesters[0].id,
+        createdCustomModuleId: created.createdCustomModuleId,
+      };
+    }
+
+    const targetStu = studentsRef.current.find((s) => s.id === studentId);
+    if (!targetStu) {
+      return { studentId, semesterId };
+    }
+
+    const res = applyParsedScanToStudent(
+      targetStu,
+      semesterId,
+      currentSchool,
+      parsed,
+      sourcePage ? { id: sourcePage.id, title: sourcePage.title } : undefined
+    );
+    schoolRef.current = res.updatedSchool;
+    setSchool(res.updatedSchool);
+    studentsRef.current = studentsRef.current.map((stu) =>
+      stu.id === studentId ? res.updatedStudent : stu
+    );
+    setStudents((prev) =>
+      prev.map((stu) => (stu.id === studentId ? res.updatedStudent : stu))
+    );
+
+    const appliedSummaryText =
+      res.appliedLabels.length > 0
+        ? `Diterjemahkan: ${res.appliedLabels.join(', ')}.`
+        : parsed.confidenceSummary;
+
+    setScanBanner({
+      type: 'success',
+      message: `Scan terbaca & tampilan baru "${res.createdCustomModuleLabel}" ditambahkan ke Modul Rapor.`,
+      detail: appliedSummaryText,
+      targetModule: res.targetModule,
+      createdCustomModuleId: res.createdCustomModuleId,
+      createdCustomModuleLabel: res.createdCustomModuleLabel,
     });
-    window.print();
+
+    return {
+      studentId,
+      semesterId,
+      createdCustomModuleId: res.createdCustomModuleId,
+    };
+  };
+
+  const handleCreateCustomModuleFromScanPage = (page: JpgScanPage) => {
+    if (!page.parsedData || !activeStudent) return;
+    const targetStu =
+      studentsRef.current.find((s) => s.id === activeStudent.id) ?? activeStudent;
+    const { updatedStudent, createdModule } = upsertCustomModuleInStudent(
+      targetStu,
+      activeSemester.id,
+      page.parsedData,
+      { id: page.id, title: page.title }
+    );
+    studentsRef.current = studentsRef.current.map((stu) =>
+      stu.id === targetStu.id ? updatedStudent : stu
+    );
+    setStudents((prev) =>
+      prev.map((stu) => (stu.id === targetStu.id ? updatedStudent : stu))
+    );
+    setActiveCustomModuleId(createdModule.id);
+    setActiveView('custom');
+    setPrintAllBundle(false);
+    setScanBanner({
+      type: 'success',
+      message: `Tampilan baru "${createdModule.menuLabel}" dibuat sesuai format uploadan & dibuka di Modul Rapor.`,
+      detail: page.parsedData.confidenceSummary,
+      createdCustomModuleId: createdModule.id,
+      createdCustomModuleLabel: createdModule.menuLabel,
+    });
+  };
+
+  const runOcrOnPage = async (
+    studentId: string,
+    semesterId: string,
+    page: JpgScanPage,
+    autoMode: 'apply_active' | 'new_student' | 'preview_only'
+  ): Promise<{ studentId: string; semesterId: string; createdCustomModuleId?: string }> => {
+    setScanBanner({
+      type: 'info',
+      message: `Sedang membaca OCR halaman "${page.title}"...`,
+      detail: 'Mengekstrak teks, struktur tabel/kolom, dan menyesuaikan tampilan Modul Rapor.',
+    });
+
+    patchStudentById(studentId, (stu) => ({
+      ...stu,
+      scanPages: (stu.scanPages ?? []).map((p) =>
+        p.id === page.id ? { ...p, scanStatus: 'scanning', scanError: undefined } : p
+      ),
+    }));
+
+    try {
+      const parsed = await parseScanImageViaApi(page.imageUrl, page.title);
+
+      const updateScanPagesOnStudent = (stu: StudentRecord): StudentRecord => ({
+        ...stu,
+        scanPages: (stu.scanPages ?? []).map((p) =>
+          p.id === page.id
+            ? {
+                ...p,
+                category: parsed.detectedType,
+                scanStatus: 'done',
+                scanError: undefined,
+                parsedData: parsed,
+              }
+            : p
+        ),
+      });
+
+      studentsRef.current = studentsRef.current.map((stu) =>
+        stu.id === studentId ? updateScanPagesOnStudent(stu) : stu
+      );
+      patchStudentById(studentId, updateScanPagesOnStudent);
+
+      if (autoMode === 'apply_active' || autoMode === 'new_student') {
+        return applyParsedResultToState(
+          studentId,
+          semesterId,
+          parsed,
+          { id: page.id, title: page.title, imageUrl: page.imageUrl },
+          autoMode
+        );
+      }
+
+      setScanBanner({
+        type: 'success',
+        message: `Scan terbaca sebagai ${parsed.detectedType}. Klik "Buat & Buka Modul Rapor" untuk membuat tampilannya.`,
+        detail: parsed.confidenceSummary,
+      });
+      return { studentId, semesterId };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Gagal membaca dokumen scan.';
+      patchStudentById(studentId, (stu) => ({
+        ...stu,
+        scanPages: (stu.scanPages ?? []).map((p) =>
+          p.id === page.id ? { ...p, scanStatus: 'error', scanError: message } : p
+        ),
+      }));
+      setScanBanner({
+        type: 'error',
+        message: `OCR gagal pada halaman "${page.title}"`,
+        detail: message,
+      });
+      return { studentId, semesterId };
+    }
+  };
+
+  const handleParseExistingScanPage = (pageId: string) => {
+    if (!activeStudent) return;
+    const page = (activeStudent.scanPages ?? []).find((p) => p.id === pageId);
+    if (!page) return;
+    void runOcrOnPage(activeStudent.id, activeSemester.id, page, uploadScanMode);
+  };
+
+  const handleParseAllScanPages = async () => {
+    if (!activeStudent || isBatchScanning) return;
+    const allPages = activeStudent.scanPages ?? [];
+    if (allPages.length === 0) return;
+
+    const pendingPages = allPages.filter((p) => !p.parsedData || p.scanStatus === 'error');
+    const targetPages = pendingPages.length > 0 ? pendingPages : allPages;
+
+    setIsBatchScanning(true);
+    let targetStudentId = activeStudent.id;
+    let targetSemesterId = activeSemester.id;
+
+    try {
+      for (let i = 0; i < targetPages.length; i++) {
+        const page = targetPages[i];
+        const modeForThisPage =
+          uploadScanMode === 'new_student' && i > 0 ? 'apply_active' : uploadScanMode;
+        const resultIds = await runOcrOnPage(
+          targetStudentId,
+          targetSemesterId,
+          page,
+          modeForThisPage
+        );
+        targetStudentId = resultIds.studentId;
+        targetSemesterId = resultIds.semesterId;
+      }
+    } finally {
+      setIsBatchScanning(false);
+    }
+  };
+
+  const handleUploadJpgScans = async (files: FileList) => {
+    if (!activeStudent || files.length === 0) return;
+    let targetStudentId = activeStudent.id;
+    let targetSemesterId = activeSemester.id;
+    const currentScansCount = (activeStudent.scanPages ?? []).length;
+
+    const loaded = await Promise.all(
+      Array.from(files).map(
+        (file, index) =>
+          new Promise<JpgScanPage | null>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              if (typeof reader.result === 'string') {
+                const cleanTitle = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]+/g, ' ');
+                resolve({
+                  id: `scan-${Date.now()}-${index}`,
+                  title: cleanTitle || `Halaman Scan ${currentScansCount + index + 1}`,
+                  category: 'Lainnya',
+                  imageUrl: reader.result,
+                  scanStatus: 'scanning',
+                });
+              } else {
+                resolve(null);
+              }
+            };
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(file);
+          })
+      )
+    );
+
+    const valid = loaded.filter((item): item is JpgScanPage => item !== null);
+    if (valid.length === 0) return;
+
+    const appendPages = (stu: StudentRecord): StudentRecord => ({
+      ...stu,
+      scanPages: [...(stu.scanPages ?? []), ...valid],
+    });
+    studentsRef.current = studentsRef.current.map((stu) =>
+      stu.id === targetStudentId ? appendPages(stu) : stu
+    );
+    patchStudentById(targetStudentId, appendPages);
+    setScanCategoryFilter('Semua');
+
+    let firstCreatedModuleId: string | undefined;
+
+    for (let i = 0; i < valid.length; i++) {
+      const page = valid[i];
+      const modeForThisPage =
+        uploadScanMode === 'new_student' && i > 0 ? 'apply_active' : uploadScanMode;
+      const resultIds = await runOcrOnPage(
+        targetStudentId,
+        targetSemesterId,
+        page,
+        modeForThisPage
+      );
+      targetStudentId = resultIds.studentId;
+      targetSemesterId = resultIds.semesterId;
+      if (!firstCreatedModuleId && resultIds.createdCustomModuleId) {
+        firstCreatedModuleId = resultIds.createdCustomModuleId;
+      }
+    }
+
+    if (firstCreatedModuleId && uploadScanMode !== 'preview_only') {
+      setActiveCustomModuleId(firstCreatedModuleId);
+      setActiveView('custom');
+      setPrintAllBundle(false);
+    }
+  };
+
+  const triggerPrint = (bundle: boolean) => {
+    const prevTitle = document.title;
+    const stuName = activeStudent?.identitas.namaLengkap || 'Rapor';
+    document.title = `e-Rapor_${stuName.replace(/\s+/g, '_')}_${activeSemester.label.replace(/\s+/g, '_')}`;
+
+    flushSync(() => {
+      setIsPrinting(true);
+      setPrintAllBundle(bundle);
+    });
+
+    let beforePrintFired = false;
+    const onBeforePrint = () => {
+      beforePrintFired = true;
+    };
+    window.addEventListener('beforeprint', onBeforePrint, { once: true });
+
+    try {
+      window.print();
+    } catch {
+      // Handled by fallback modal below
+    }
+
+    window.setTimeout(() => {
+      window.removeEventListener('beforeprint', onBeforePrint);
+      document.title = prevTitle;
+      if (!beforePrintFired) {
+        setPrintFallbackModal({ bundle });
+      }
+    }, 300);
+  };
+
+  const handlePrintCurrent = () => {
+    triggerPrint(activeView === 'overview');
   };
 
   const handlePrintBundle = () => {
-    flushSync(() => {
-      setPrintAllBundle(true);
-    });
-    window.print();
+    triggerPrint(true);
   };
 
-  const handleDownloadPrintableHtml = () => {
+  const handleDownloadPrintableHtml = (forceBundle?: boolean) => {
+    const shouldUseBundle = forceBundle ?? (activeView === 'overview');
     flushSync(() => {
-      if (activeView === 'overview') {
-        setPrintAllBundle(true);
-      }
+      setIsPrinting(true);
+      setPrintAllBundle(shouldUseBundle);
     });
     const node = printAreaRef.current;
-    if (!node) return;
+    if (!node) {
+      setIsPrinting(false);
+      return;
+    }
     const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
       .map((el) => el.outerHTML)
       .join('\n');
@@ -367,10 +728,14 @@ export default function App() {
   <title>e-Rapor - ${studentTitle}</title>
   ${styles}
   <style>
-    body { background: #ffffff !important; margin: 0; padding: 0; }
-    .print-zoom-wrapper { zoom: 1 !important; transform: none !important; gap: 0 !important; }
+    :root { --user-print-font-scale: ${printFontScale}; --doc-font-scale: ${printFontScale}; }
+    @page { size: A4 portrait; margin: 0; }
+    html, body { background: #ffffff !important; margin: 0 !important; padding: 0 !important; width: 210mm !important; }
+    .no-print { display: none !important; }
+    .print-container, .print-zoom-wrapper { zoom: 1 !important; transform: none !important; gap: 0 !important; width: 210mm !important; margin: 0 !important; padding: 0 !important; display: block !important; }
     @media screen {
-      body { background: #e2e8f0 !important; padding: 20px 0; }
+      html, body { width: 100% !important; background: #e2e8f0 !important; padding: 20px 0 !important; }
+      .print-container, .print-zoom-wrapper { margin: 0 auto !important; }
       .rapor-sheet { margin: 0 auto 24px auto !important; }
     }
   </style>
@@ -389,8 +754,11 @@ export default function App() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    if (activeView === 'overview') {
-      setPrintAllBundle(false);
+    if (!printFallbackModal) {
+      setIsPrinting(false);
+      if (activeView === 'overview') {
+        setPrintAllBundle(false);
+      }
     }
   };
 
@@ -415,6 +783,11 @@ export default function App() {
     activeView === 'overview' ? 'sumatif' : activeView;
 
   const customModules = activeSemester.customModules ?? [];
+  const scanPages = activeStudent?.scanPages ?? [];
+  const filteredScanPages = useMemo(() => {
+    if (scanCategoryFilter === 'Semua') return scanPages;
+    return scanPages.filter((p) => p.category === scanCategoryFilter);
+  }, [scanPages, scanCategoryFilter]);
 
   const currentBreadcrumbLabel =
     activeView === 'custom'
@@ -644,7 +1017,7 @@ export default function App() {
                 onClick={() => setSecModulesOpen((v) => !v)}
                 className="w-full flex items-center justify-between text-[11px] font-semibold text-slate-300 py-1 px-1 hover:text-white cursor-pointer"
               >
-                <span>Modul Rapor ({5 + customModules.length})</span>
+                <span>Modul Rapor ({6 + customModules.length})</span>
                 {secModulesOpen ? (
                   <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
                 ) : (
@@ -671,6 +1044,11 @@ export default function App() {
                       id: 'p5' as RaporModule,
                       name: 'Projek P5',
                       count: activeSemester.p5.projects.length,
+                    },
+                    {
+                      id: 'scan_jpg' as RaporModule,
+                      name: 'Versi Scan JPG',
+                      count: scanPages.length,
                     },
                   ].map((mod) => {
                     const isCurrent = activeView === mod.id;
@@ -966,6 +1344,29 @@ export default function App() {
 
           {/* Right: Functional Actions */}
           <div className="flex items-center gap-2 shrink-0">
+            <label
+              title="Unggah & baca scan rapor JPG/PNG dengan OCR"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-200 hover:text-white hover:bg-white/10 rounded border border-white/15 transition-colors whitespace-nowrap cursor-pointer"
+            >
+              <ScanText className="w-3.5 h-3.5 text-[#38bdf8]" />
+              <span>Scan OCR</span>
+              <input
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/webp"
+                multiple
+                onChange={(e) => {
+                  if (e.target.files && e.target.files.length > 0) {
+                    setActiveView('scan_jpg');
+                    setActiveCustomModuleId(null);
+                    setPrintAllBundle(false);
+                    void handleUploadJpgScans(e.target.files);
+                    e.target.value = '';
+                  }
+                }}
+                className="sr-only"
+              />
+            </label>
+
             <button
               type="button"
               onClick={() => setAddModuleOpen(true)}
@@ -1067,6 +1468,82 @@ export default function App() {
                       </button>
                     </div>
                   )}
+
+                  {activeView === 'scan_jpg' && (
+                    <div className="flex flex-wrap items-center gap-1.5 ml-1">
+                      <div className="flex flex-wrap items-center gap-1 p-0.5 bg-slate-100 rounded border border-slate-200">
+                        {[
+                          'Semua',
+                          'Sampul',
+                          'Identitas',
+                          'Sumatif',
+                          'Hasil Belajar',
+                          'Rapor P5',
+                          'Lainnya',
+                        ].map((cat) => (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => setScanCategoryFilter(cat)}
+                            className={`px-2 py-0.5 text-[11px] font-medium rounded-sm whitespace-nowrap cursor-pointer ${
+                              scanCategoryFilter === cat
+                                ? 'bg-white text-slate-900 shadow-xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
+
+                      <select
+                        value={uploadScanMode}
+                        onChange={(e) =>
+                          setUploadScanMode(
+                            e.target.value as 'apply_active' | 'new_student' | 'preview_only'
+                          )
+                        }
+                        title="Tindakan otomatis setelah membaca scan JPG"
+                        className="px-2 py-1 text-[11px] font-medium text-slate-700 bg-white border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-[#00a0d2]"
+                      >
+                        <option value="apply_active">Auto Buat Modul Baru + Terapkan Data</option>
+                        <option value="new_student">Auto Buat Siswa Baru + Modul Baru</option>
+                        <option value="preview_only">Baca Preview Saja</option>
+                      </select>
+
+                      <label className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-white bg-[#00a0d2] hover:bg-[#008bb8] rounded cursor-pointer whitespace-nowrap">
+                        <Upload className="w-3 h-3" />
+                        <span>Upload &amp; Baca JPG</span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/jpg,image/png,image/webp"
+                          multiple
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files.length > 0) {
+                              void handleUploadJpgScans(e.target.files);
+                              e.target.value = '';
+                            }
+                          }}
+                          className="sr-only"
+                        />
+                      </label>
+
+                      <button
+                        type="button"
+                        disabled={isBatchScanning || (activeStudent.scanPages ?? []).length === 0}
+                        onClick={() => void handleParseAllScanPages()}
+                        title="Jalankan pembacaan OCR pada lembar scan JPG yang belum terbaca"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-[#008bb8] bg-[#00a0d2]/10 border border-[#00a0d2]/40 hover:bg-[#00a0d2]/15 rounded cursor-pointer whitespace-nowrap disabled:opacity-50"
+                      >
+                        {isBatchScanning ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <ScanText className="w-3 h-3" />
+                        )}
+                        <span>{isBatchScanning ? 'Memproses OCR...' : 'Baca Semua OCR'}</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -1093,6 +1570,17 @@ export default function App() {
                     </button>
                   </div>
 
+                  <select
+                    value={printFontScale}
+                    onChange={(e) => setPrintFontScale(parseFloat(e.target.value))}
+                    title="Ukuran huruf saat dicetak"
+                    className="px-2 py-1 text-[11px] font-medium text-slate-700 bg-slate-100 border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#00a0d2] cursor-pointer"
+                  >
+                    <option value={1}>Font Print: 100%</option>
+                    <option value={1.15}>Font Print: 115% (Besar)</option>
+                    <option value={1.25}>Font Print: 125% (Ekstra)</option>
+                  </select>
+
                   <button
                     type="button"
                     onClick={handlePrintCurrent}
@@ -1114,12 +1602,102 @@ export default function App() {
 
                   <button
                     type="button"
-                    onClick={handleDownloadPrintableHtml}
+                    onClick={() => handleDownloadPrintableHtml()}
                     className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 cursor-pointer"
                     title="Unduh file HTML siap cetak"
                   >
                     <Download className="w-3.5 h-3.5 text-emerald-600" />
                     <span className="hidden md:inline">Unduh HTML</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Global OCR Status Banner */}
+            {scanBanner && (
+              <div
+                className={`no-print px-5 py-2.5 border-b flex flex-wrap items-center justify-between gap-3 shrink-0 ${
+                  scanBanner.type === 'error'
+                    ? 'bg-red-50 border-red-200 text-red-900'
+                    : scanBanner.type === 'info'
+                      ? 'bg-sky-50 border-sky-200 text-sky-900'
+                      : 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                }`}
+              >
+                <div className="flex items-start gap-2.5 min-w-0">
+                  {scanBanner.type === 'error' ? (
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  ) : scanBanner.type === 'info' ? (
+                    <Loader2 className="w-4 h-4 text-[#00a0d2] shrink-0 mt-0.5 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  )}
+                  <div className="text-xs">
+                    <div className="font-semibold">{scanBanner.message}</div>
+                    {scanBanner.detail && (
+                      <div
+                        className={`mt-0.5 ${
+                          scanBanner.type === 'error'
+                            ? 'text-red-700'
+                            : scanBanner.type === 'info'
+                              ? 'text-sky-700'
+                              : 'text-emerald-700'
+                        }`}
+                      >
+                        {scanBanner.detail}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  {scanBanner.type === 'success' && scanBanner.createdCustomModuleId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveView('custom');
+                        setActiveCustomModuleId(scanBanner.createdCustomModuleId!);
+                        setPrintAllBundle(false);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded cursor-pointer"
+                    >
+                      <span>
+                        Buka Modul: {scanBanner.createdCustomModuleLabel || 'Modul Baru'}
+                      </span>
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  )}
+                  {scanBanner.type === 'success' && scanBanner.targetModule && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveView(scanBanner.targetModule!);
+                        setActiveCustomModuleId(null);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded cursor-pointer"
+                    >
+                      <span>Buka Modul Standar</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  )}
+                  {activeView !== 'scan_jpg' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveView('scan_jpg');
+                        setActiveCustomModuleId(null);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded cursor-pointer"
+                    >
+                      <span>Lihat Scan JPG</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setScanBanner(null)}
+                    className="p-1 opacity-70 hover:opacity-100 cursor-pointer"
+                    title="Tutup notifikasi"
+                  >
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -1157,7 +1735,7 @@ export default function App() {
                   <div ref={printAreaRef} className="flex justify-center items-start print-container">
                     <div
                       className="flex flex-col items-center gap-7 print-zoom-wrapper"
-                      style={{ zoom }}
+                      style={{ zoom: isPrinting ? 1 : zoom }}
                     >
                       {printAllBundle ? (
                         <>
@@ -1229,6 +1807,40 @@ export default function App() {
                               onUpdateLevel={handleUpdateP5Level}
                             />
                           )}
+                          {activeView === 'scan_jpg' && (
+                            <ScanJpgPages
+                              pages={filteredScanPages}
+                              onUploadFiles={(files) => {
+                                void handleUploadJpgScans(files);
+                              }}
+                              onParsePage={handleParseExistingScanPage}
+                              onCreateCustomModule={handleCreateCustomModuleFromScanPage}
+                              onApplyParsedToActive={(page) => {
+                                if (!page.parsedData || !activeStudent) return;
+                                applyParsedResultToState(
+                                  activeStudent.id,
+                                  activeSemester.id,
+                                  page.parsedData,
+                                  { id: page.id, title: page.title, imageUrl: page.imageUrl },
+                                  'apply_active'
+                                );
+                              }}
+                              onCreateStudentFromParsed={(page) => {
+                                if (!page.parsedData || !activeStudent) return;
+                                applyParsedResultToState(
+                                  activeStudent.id,
+                                  activeSemester.id,
+                                  page.parsedData,
+                                  { id: page.id, title: page.title, imageUrl: page.imageUrl },
+                                  'new_student'
+                                );
+                              }}
+                              onOpenModule={(mod) => {
+                                setActiveView(mod);
+                                setActiveCustomModuleId(null);
+                              }}
+                            />
+                          )}
                           {activeView === 'custom' && activeCustomModule && (
                             <CustomModulePage
                               identitas={activeStudent.identitas}
@@ -1255,6 +1867,24 @@ export default function App() {
                 activeSemester={activeSemester}
                 student={activeStudent}
                 onUpdateStudent={handleUpdateStudent}
+                onUploadScanFiles={(files) => {
+                  void handleUploadJpgScans(files);
+                }}
+                onParseScanPage={handleParseExistingScanPage}
+                onParseAllScanPages={() => {
+                  void handleParseAllScanPages();
+                }}
+                isBatchScanning={isBatchScanning}
+                onApplyParsedPage={(page) => {
+                  if (!page.parsedData || !activeStudent) return;
+                  applyParsedResultToState(
+                    activeStudent.id,
+                    activeSemester.id,
+                    page.parsedData,
+                    { id: page.id, title: page.title, imageUrl: page.imageUrl },
+                    'apply_active'
+                  );
+                }}
               />
             </aside>
           )}
@@ -1288,6 +1918,110 @@ export default function App() {
         onClose={() => setSchoolModalOpen(false)}
         onSave={setSchool}
       />
+
+      {/* Print Fallback Modal (when sandboxed iframe blocks native window.print) */}
+      {printFallbackModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/55 flex items-center justify-center p-4 no-print">
+          <div className="bg-white rounded-lg border border-slate-200 shadow-xl w-full max-w-md overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Printer className="w-4 h-4 text-[#00a0d2]" />
+                <h3 className="text-sm font-semibold text-slate-900">
+                  Cetak &amp; Simpan PDF Rapor
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPrintFallbackModal(null);
+                  setPrintAllBundle(false);
+                  setIsPrinting(false);
+                }}
+                className="p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs text-slate-600 leading-relaxed">
+              <p>
+                Jendela pratinjau tersemat membatasi dialog cetak langsung browser. Anda tetap
+                dapat mencetak semua halaman A4 dengan skala penuh 100% menggunakan opsi berikut:
+              </p>
+
+              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded space-y-2 text-[11px] text-slate-600">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium text-slate-700">Ukuran Font Saat Print:</span>
+                  <select
+                    value={printFontScale}
+                    onChange={(e) => setPrintFontScale(parseFloat(e.target.value))}
+                    className="px-2 py-1 text-[11px] font-semibold text-slate-800 bg-white border border-slate-300 rounded cursor-pointer"
+                  >
+                    <option value={1}>100% (Standar)</option>
+                    <option value={1.15}>115% (Diperbesar)</option>
+                    <option value={1.25}>125% (Ekstra Besar)</option>
+                  </select>
+                </div>
+                <div>
+                  Pengaturan cetak yang disarankan: <strong className="text-slate-800">Kertas A4</strong> · <strong className="text-slate-800">Margin Default / None</strong> · <strong className="text-slate-800">Skala 100%</strong>
+                </div>
+              </div>
+
+              <div className="space-y-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleDownloadPrintableHtml(printFallbackModal.bundle);
+                  }}
+                  className="w-full py-2.5 px-4 bg-[#00a0d2] hover:bg-[#008bb8] text-white font-semibold rounded flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Unduh File Siap Cetak (.HTML → Print / PDF)</span>
+                </button>
+
+                <a
+                  href={window.location.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2 px-4 bg-white hover:bg-slate-50 text-slate-700 font-medium border border-slate-300 rounded flex items-center justify-center gap-2 transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 text-[#00a0d2]" />
+                  <span>Buka Aplikasi di Tab Penuh untuk Print Langsung</span>
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      window.print();
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                  className="w-full py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Coba Panggil Dialog Print Browser</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setPrintFallbackModal(null);
+                  setPrintAllBundle(false);
+                  setIsPrinting(false);
+                }}
+                className="px-3.5 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-100 cursor-pointer"
+              >
+                Kembali
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

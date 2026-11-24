@@ -29,11 +29,17 @@ export function SumatifPage({
         tahunPelajaran={tahunPelajaran || school.tahunPelajaran}
       />
 
-      <h1 className="text-center text-[11pt] font-bold tracking-wide mt-3.5 mb-2.5">
+      <h1
+        className="text-center font-bold tracking-wide mt-3.5 mb-2.5"
+        style={{ fontSize: 'calc(11pt * var(--doc-font-scale, 1))' }}
+      >
         LAPORAN HASIL PENILAIAN SUMATIF SISWA
       </h1>
 
-      <table className="rapor-table text-[8.7pt] leading-[1.28]">
+      <table
+        className="rapor-table leading-[1.26]"
+        style={{ fontSize: 'calc(8.7pt * var(--doc-font-scale, 1))' }}
+      >
         <thead>
           <tr>
             <th className="w-[30px]">No</th>
@@ -67,8 +73,11 @@ export function SumatifPage({
       </table>
 
       {/* Ketidakhadiran */}
-      <div className="mt-3.5 w-[275px]">
-        <table className="rapor-table text-[8.8pt]">
+      <div className="mt-3.5 w-[290px]">
+        <table
+          className="rapor-table"
+          style={{ fontSize: 'calc(8.8pt * var(--doc-font-scale, 1))' }}
+        >
           <tbody>
             <tr>
               <td className="w-[140px] py-[2.5px]">Sakit</td>
@@ -94,8 +103,16 @@ export function SumatifPage({
 
       {/* Catatan Wali Kelas */}
       <div className="mt-3">
-        <div className="text-[9pt] font-bold mb-1">Catatan Wali Kelas</div>
-        <div className="border border-gray-600 px-2.5 py-2 text-[9pt] italic font-bold min-h-[34px]">
+        <div
+          className="font-bold mb-1"
+          style={{ fontSize: 'calc(9pt * var(--doc-font-scale, 1))' }}
+        >
+          Catatan Wali Kelas
+        </div>
+        <div
+          className="border border-gray-600 px-2.5 py-2 italic font-bold min-h-[34px]"
+          style={{ fontSize: 'calc(9pt * var(--doc-font-scale, 1))' }}
+        >
           {sumatif.catatanWaliKelas}
         </div>
       </div>
