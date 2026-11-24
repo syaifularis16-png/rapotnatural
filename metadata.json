@@ -1,0 +1,6 @@
+{
+  "name": "e-Rapor SMA Negeri 2 Pasuruan",
+  "description": "Aplikasi e-Rapor Kurikulum Merdeka SMA untuk pengelolaan dan pencetakan Sampul, Identitas Peserta Didik, Penilaian Sumatif (STS), Laporan Hasil Belajar, dan Rapor P5.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
